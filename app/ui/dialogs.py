@@ -128,15 +128,10 @@ def show_about(master=None):
     # Try to load app icon PNG for about dialog
     try:
         from PIL import Image
-        import os
-        import sys
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            base_dir = sys._MEIPASS
-        else:
-            base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
-        icon_path = os.path.join(base_dir, "assets", "icons", "app.png")
-        if os.path.exists(icon_path):
-            icon_img = ctk.CTkImage(Image.open(icon_path), size=(64, 64))
+        from pathlib import Path
+        icon_path = Path(__file__).resolve().parent.parent.parent / "assets" / "icons" / "app.png"
+        if icon_path.exists():
+            icon_img = ctk.CTkImage(Image.open(str(icon_path)), size=(64, 64))
             label_icon = ctk.CTkLabel(dialog, image=icon_img, text="")
         else:
             raise FileNotFoundError

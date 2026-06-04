@@ -176,10 +176,6 @@ class PreviewPanel(ctk.CTkFrame):
             "4. Wait for the process to complete"
         )
 
-    # ──────────────────────────────────────────────
-    #  Search (P3.1)
-    # ──────────────────────────────────────────────
-
     def _on_search(self):
         """Search and highlight text in preview."""
         query = self.search_entry.get().strip()
@@ -242,10 +238,6 @@ class PreviewPanel(ctk.CTkFrame):
             text=f"{self._search_current + 1}/{len(self._search_matches)}"
         )
 
-    # ──────────────────────────────────────────────
-    #  Word-level Timestamps (P3.3)
-    # ──────────────────────────────────────────────
-
     def _format_ts_hms(self, seconds: float) -> str:
         """Format seconds to [HH:MM:SS]."""
         hours = int(seconds // 3600)
@@ -254,7 +246,7 @@ class PreviewPanel(ctk.CTkFrame):
         return f"[{hours:02d}:{minutes:02d}:{secs:02d}]"
 
     def _format_with_timestamps(self) -> str:
-        """Format teks dengan timestamp per kata."""
+        """Format text with per-word timestamps."""
         lines = []
         for seg in self._raw_segments:
             words = seg.get("words", [])

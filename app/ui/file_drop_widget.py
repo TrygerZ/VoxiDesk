@@ -305,9 +305,9 @@ class FileDropWidget(ctk.CTkFrame):
             )
             btn_remove.pack(side="right", padx=(5, 0))
 
-        # Paksa refresh scrollable frame
+        # Force refresh scrollable frame
         self.file_list_container.update_idletasks()
-        # Scroll ke atas
+        # Scroll to top
         try:
             self.file_list_container._parent_canvas.yview_moveto(0)
         except AttributeError:

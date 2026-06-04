@@ -7,7 +7,7 @@ build/
 dist/
 *.spec
 
-# Data lokal
+# Local data
 history.json
 settings.json
 
@@ -19,7 +19,7 @@ settings.json
 ffmpeg/bin/*.dll
 ffmpeg/bin/*.exe
 
-# FFmpeg development files (dokumentasi, header C, library, preset)
+# FFmpeg development files (docs, C headers, library, presets)
 ffmpeg/doc/
 ffmpeg/include/
 ffmpeg/lib/

@@ -47,7 +47,7 @@ def get_available_devices() -> list[dict]:
         "description": "All computers (slowest)",
     })
 
-    # Cek CUDA via CTranslate2 (tidak perlu PyTorch)
+    # Check CUDA via CTranslate2 (no PyTorch needed)
     cuda_count = _get_cuda_device_count()
     if cuda_count > 0:
         nvidia_gpus = _check_nvidia_smi()

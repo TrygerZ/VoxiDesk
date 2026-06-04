@@ -1,8 +1,6 @@
 """Application settings management stored in settings.json."""
 
 import json
-import os
-import sys
 from pathlib import Path
 from threading import Lock
 
@@ -20,11 +18,7 @@ DEFAULT_SETTINGS = {
 }
 
 # Path to project root folder
-if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-    # Use APPDATA for writable files in frozen app
-    ROOT_DIR = Path(os.environ.get('APPDATA', Path.home())) / "VoxiDesk"
-else:
-    ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class AppSettings:

@@ -1,4 +1,4 @@
-"""Main application window for VoxiDesk (Phase 2)."""
+"""Main application window for VoxiDesk."""
 
 import time
 from pathlib import Path
@@ -20,7 +20,7 @@ from app.data.settings import AppSettings
 
 
 class MainWindow(ctk.CTkFrame):
-    """Main window that manages all panels and logic (Phase 2)."""
+    """Main window that manages all panels and logic."""
 
     def __init__(self, master, settings: AppSettings | None = None, **kwargs):
         """
@@ -69,8 +69,7 @@ class MainWindow(ctk.CTkFrame):
         self._poll_queues()
 
     def _build_ui(self):
-        """Build all UI components with Transcribe and History tabs."""
-        # === TOP BAR: Theme Toggle ===
+        """Build UI components with Transcribe and History tabs."""
         self.top_bar = ctk.CTkFrame(self, fg_color="transparent", height=30)
         self.top_bar.pack(fill="x", padx=10, pady=(5, 0))
 
@@ -92,35 +91,28 @@ class MainWindow(ctk.CTkFrame):
         self.btn_theme.pack(side="right", padx=(5, 0))
         self._update_theme_button()
 
-        # === TAB VIEW ===
         self.tab_view = ctk.CTkTabview(self)
         self.tab_view.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # --- Tab 1: Transcribe ---
         self.tab_transcribe = self.tab_view.add("🎤 Transcribe")
         self._build_transcribe_tab()
 
-        # --- Tab 2: History ---
         self.tab_history = self.tab_view.add("📜 History")
         self.history_panel = HistoryPanel(self.tab_history, history=self.history)
         self.history_panel.pack(fill="both", expand=True)
 
     def _build_transcribe_tab(self):
         """Build UI components in the Transcribe tab."""
-        # Scrollable frame for content
         self.scroll_frame = ctk.CTkScrollableFrame(self.tab_transcribe)
         self.scroll_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # 1. File Drop Widget
         self.file_drop = FileDropWidget(self.scroll_frame)
         self.file_drop.pack(fill="x", pady=(0, 10))
         self.file_drop.set_on_file_change(self._on_file_changed)
 
-        # 2. Settings Panel
         self.settings_panel = SettingsPanel(self.scroll_frame)
         self.settings_panel.pack(fill="x", pady=(0, 10))
 
-        # 3. Action Buttons
         self.action_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.action_frame.pack(fill="x", padx=20, pady=(0, 10))
 
@@ -157,11 +149,9 @@ class MainWindow(ctk.CTkFrame):
         )
         self.btn_about.pack(side="left", padx=(0, 10))
 
-        # 4. Progress Panel
         self.progress_panel = ProgressPanel(self.scroll_frame)
         self.progress_panel.pack(fill="x", pady=(0, 10))
 
-        # 5. Preview Panel
         self.preview_panel = PreviewPanel(self.scroll_frame)
         self.preview_panel.pack(fill="both", pady=(0, 10), expand=True)
 
@@ -169,9 +159,6 @@ class MainWindow(ctk.CTkFrame):
         if not self.ffmpeg_status["available"]:
             self._show_ffmpeg_warning()
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  Theme Toggle (P2.2)
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _toggle_theme(self):
         """Toggle between Dark and Light mode."""
@@ -189,10 +176,6 @@ class MainWindow(ctk.CTkFrame):
         else:
             self.btn_theme.configure(text="🌙 Dark")
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  FFmpeg Warning
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
     def _show_ffmpeg_warning(self):
         """Show warning if FFmpeg is not found."""
         warning_label = ctk.CTkLabel(
@@ -205,20 +188,14 @@ class MainWindow(ctk.CTkFrame):
         )
         warning_label.pack(padx=20, pady=(0, 10))
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  Settings Persistence (P2.4)
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
     def _load_settings(self):
         """Load settings from file and apply to UI."""
         settings = self.app_settings.get_all()
 
-        # Theme
         theme = settings.get("theme", "System")
         ctk.set_appearance_mode(theme)
         self._update_theme_button()
 
-        # Settings panel
         self.settings_panel.load_from_settings(settings)
 
     def _save_settings(self):
@@ -228,10 +205,6 @@ class MainWindow(ctk.CTkFrame):
         settings["window_width"] = self.winfo_width()
         settings["window_height"] = self.winfo_height()
         self.app_settings.update(settings)
-
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  File Change Handler (Multi-file P2.1)
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _on_file_changed(self, files: list[Path]):
         """Callback when the file list changes."""
@@ -249,9 +222,7 @@ class MainWindow(ctk.CTkFrame):
         """Return the list of files from the widget."""
         return self.file_drop.get_files()
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  Batch Transcription (P2.1)
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
 
     def _start_transcription(self):
         """Start batch transcription process."""
@@ -269,7 +240,6 @@ class MainWindow(ctk.CTkFrame):
             )
             return
 
-        # Validasi format minimal satu
         config = self.settings_panel.get_config()
         if not config["formats"]:
             show_error(
@@ -367,16 +337,11 @@ class MainWindow(ctk.CTkFrame):
         )
         self.worker.start()
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  Cancel (P2.5)
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
     def _cancel_transcription(self):
         """Cancel transcription with confirmation."""
         if not self.is_processing or not self.worker:
             return
 
-        # Confirmation dialog
         dialog = ctk.CTkToplevel(self.winfo_toplevel())
         dialog.title("Confirm")
         dialog.geometry("350x150")
@@ -384,7 +349,6 @@ class MainWindow(ctk.CTkFrame):
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
 
-        # Center
         dialog.update_idletasks()
         x = self.winfo_x() + (self.winfo_width() - 350) // 2
         y = self.winfo_y() + (self.winfo_height() - 150) // 2
@@ -421,27 +385,18 @@ class MainWindow(ctk.CTkFrame):
             width=100,
         ).pack(side="left", padx=5)
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  Progress Handler
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
     def _on_progress(self, current: int, total: int, text: str):
         """Handler for progress updates from worker."""
         if total > 0:
             pct = current / max(total, 1)
             self.progress_panel.update_progress(pct)
         if text and text.strip():
-            # Update status label REAL-TIME with speed info (tok/s, ETA, etc.)
             self.progress_panel.set_status(text.strip())
             # Log only every 5% change to prevent spam
             new_pct = int((current / max(total, 1)) * 100) if total > 0 else -1
             if new_pct < 0 or self._last_logged_pct < 0 or (new_pct - self._last_logged_pct) >= 5:
                 self.progress_panel.append_log(f"  {text.strip()}")
                 self._last_logged_pct = new_pct
-
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  Complete Handlers
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _on_complete(self, result: dict):
         """Handler when one file is done transcribing."""
@@ -481,7 +436,6 @@ class MainWindow(ctk.CTkFrame):
                 f"language {language}"
         )
 
-        # Save to history (P2.3)
         self._save_history_entry(
             file_path=file_path,
             result=result,
@@ -547,12 +501,12 @@ class MainWindow(ctk.CTkFrame):
         # Ask whether to continue to next file
         if self.batch_index < self.batch_total - 1:
             from tkinter import messagebox
-            lanjut = messagebox.askyesno(
+            proceed = messagebox.askyesno(
                 "Continue Batch?",
-                f"File failed to process. Continue to next file?",
+                "File failed to process. Continue to next file?",
                 parent=self.winfo_toplevel()
             )
-            if lanjut:
+            if proceed:
                 self.batch_index += 1
                 self._process_next_file()
             else:
@@ -575,10 +529,6 @@ class MainWindow(ctk.CTkFrame):
             )
 
         self._reset_ui()
-
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  History (P2.3)
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _save_history_entry(
         self,
@@ -612,10 +562,6 @@ class MainWindow(ctk.CTkFrame):
         except Exception:
             pass  # Ignore history errors, not critical
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  UI Reset
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
     def _reset_ui(self):
         """Reset UI to initial state."""
         self.is_processing = False
@@ -637,10 +583,6 @@ class MainWindow(ctk.CTkFrame):
                 text="▶ Transcribe!",
             )
         self.btn_cancel.configure(state="disabled")
-
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    #  Queue Polling
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _poll_queues(self):
         """Check queues for updates from worker (called via after)."""
@@ -687,7 +629,9 @@ class MainWindow(ctk.CTkFrame):
         show_about(master=self.winfo_toplevel())
 
     def on_close(self):
-        """Handler when window is closed."""
+
+    def on_close(self):
+        """Clean up on window close."""
         if self.worker and self.is_processing:
             self.worker.cancel()
             self.worker.join(timeout=2.0)

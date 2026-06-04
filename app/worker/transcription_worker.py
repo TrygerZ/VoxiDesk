@@ -69,7 +69,7 @@ class TranscriptionWorker(threading.Thread):
             self.progress_queue.put(("progress", 0, 100, "Starting transcription..."))
 
             audio_dur = get_audio_duration(self.file_path)
-            # Shared state antara tqdm capture dan on_segment callback
+            # Shared state between tqdm capture and on_segment callback
             prog_state = {"tok_s": 0.0}
 
             # === REAL-TIME PROGRESS FROM TQDM ===
@@ -90,7 +90,7 @@ class TranscriptionWorker(threading.Thread):
                     if sys.__stderr__ is not None:
                         sys.__stderr__.write(s)  # pass through to original stderr
                     self._buf += s
-                    # Ambil persentase terakhir dari buffer
+                    # Get last percentage from buffer
                     matches = re.findall(r'(\d+)%', self._buf)
                     if matches:
                         pct = min(int(matches[-1]), 99)
@@ -140,17 +140,15 @@ class TranscriptionWorker(threading.Thread):
             finally:
                 sys.stderr = original_stderr
 
-            # === CHECK CANCEL BEFORE EXPORT ===
             if self._cancel_flag.is_set():
                 self.progress_queue.put(("status", "Transcription cancelled"))
                 transcriber.unload_model()
                 self.result_queue.put(("cancelled", None))
                 return
 
-            # === EXPORT RESULTS ===
             self.progress_queue.put(("status", "Saving transcription results..."))
 
-            # Export hasil
+            # Export results
             output_dir = Path(self.config.get("output_dir", in_path.parent))
             output_dir.mkdir(parents=True, exist_ok=True)
             base_path = output_dir / in_path.stem
@@ -158,11 +156,10 @@ class TranscriptionWorker(threading.Thread):
 
             saved_files = export_results(result, base_path, formats)
 
-            # === PROGRESS 100% ===
             self.progress_queue.put(("progress", 100, 100, "✅ Done!"))
             self.progress_queue.put(("status", "✅ Transcription complete!"))
 
-            # Kirim hasil
+            # Send result
             self.result_queue.put((
                 "result",
                 {

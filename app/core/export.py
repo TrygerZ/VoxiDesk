@@ -1,15 +1,11 @@
 """Export transcription results to TXT, SRT, VTT, PDF formats."""
 
 import datetime
-import os
-import sys
 from pathlib import Path
 
 
 def _get_assets_dir() -> Path:
-    """Get assets directory, using sys._MEIPASS when frozen."""
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        return Path(sys._MEIPASS) / "assets"
+    """Get assets directory path."""
     return Path(__file__).resolve().parent.parent.parent / "assets"
 
 

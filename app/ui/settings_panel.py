@@ -31,7 +31,7 @@ DEVICE_TOOLTIPS = {
     "cuda": "Process on NVIDIA GPU (fast, requires CUDA)."
 }
 
-# Daftar bahasa yang didukung
+# Supported language options
 LANGUAGE_OPTIONS = {
     "id": "Indonesia",
     "en": "English",
@@ -83,7 +83,6 @@ class SettingsPanel(ctk.CTkFrame):
 
     def _build_ui(self):
         """Build settings UI components."""
-        # Title
         label_title = ctk.CTkLabel(
             self,
             text="⚙️ Transcription Settings",
@@ -91,7 +90,6 @@ class SettingsPanel(ctk.CTkFrame):
         )
         label_title.pack(pady=(10, 5))
 
-        # Grid settings
         self.grid_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.grid_frame.pack(fill="x", padx=20, pady=5)
 
@@ -135,7 +133,6 @@ class SettingsPanel(ctk.CTkFrame):
         )
         self.language_menu.grid(row=1, column=1, columnspan=2, sticky="w", pady=5)
 
-        # Set default — look for code "id" dynamically
         default_lang = next(
             (d for d in language_display if d.startswith("id")),
             language_display[0]
@@ -212,7 +209,6 @@ class SettingsPanel(ctk.CTkFrame):
         )
         self.cuda_label.grid(row=4, column=2, sticky="w", padx=(10, 0), pady=5)
 
-        # Row 5: Device info (own row for tooltip)
         device_info_text = (
             self.cuda_status.get("install_hint")
             if not self.cuda_status["available"] and self.cuda_status["nvidia_gpus"]

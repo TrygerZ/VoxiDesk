@@ -13,7 +13,6 @@ class ProgressPanel(ctk.CTkFrame):
 
     def _build_ui(self):
         """Build UI components."""
-        # Status label
         self.label_title = ctk.CTkLabel(
             self,
             text="Progress",
@@ -21,7 +20,6 @@ class ProgressPanel(ctk.CTkFrame):
         )
         self.label_title.pack(pady=(10, 5))
 
-        # Status file
         self.status_var = ctk.StringVar(value="Waiting for files...")
         self.label_status = ctk.CTkLabel(
             self,
@@ -32,12 +30,10 @@ class ProgressPanel(ctk.CTkFrame):
         )
         self.label_status.pack(fill="x", padx=20, pady=(0, 5))
 
-        # Progress bar
         self.progress_bar = ctk.CTkProgressBar(self, height=15)
         self.progress_bar.pack(fill="x", padx=20, pady=(0, 5))
         self.progress_bar.set(0)
 
-        # Log textbox
         self.log_text = ctk.CTkTextbox(
             self,
             height=120,

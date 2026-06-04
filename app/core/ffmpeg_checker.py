@@ -3,23 +3,12 @@
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 
-_frozen_base = None
-
-
 def _get_base_dir() -> Path:
-    """Get base directory, using sys._MEIPASS when frozen."""
-    global _frozen_base
-    if _frozen_base is not None:
-        return _frozen_base
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        _frozen_base = Path(sys._MEIPASS)
-    else:
-        _frozen_base = Path(__file__).resolve().parent.parent.parent
-    return _frozen_base
+    """Get project root directory."""
+    return Path(__file__).resolve().parent.parent.parent
 
 
 def check_ffmpeg() -> dict:

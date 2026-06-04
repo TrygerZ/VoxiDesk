@@ -26,7 +26,6 @@ class HistoryPanel(ctk.CTkFrame):
 
     def _build_ui(self):
         """Build UI components."""
-        # Header
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.pack(fill="x", padx=20, pady=(10, 5))
 
@@ -59,11 +58,9 @@ class HistoryPanel(ctk.CTkFrame):
         )
         self.btn_clear.pack(side="right", padx=(5, 0))
 
-        # History table
         self.table_frame = ctk.CTkScrollableFrame(self)
         self.table_frame.pack(fill="both", padx=20, pady=(5, 10), expand=True)
 
-        # Detail panel
         self.detail_frame = ctk.CTkFrame(self)
         self.detail_frame.pack(fill="x", padx=20, pady=(0, 10))
 
@@ -78,7 +75,6 @@ class HistoryPanel(ctk.CTkFrame):
         )
         self.detail_label.pack(fill="x", padx=10, pady=5)
 
-        # Count label
         self.count_label = ctk.CTkLabel(
             self,
             text="",
@@ -91,7 +87,6 @@ class HistoryPanel(ctk.CTkFrame):
         """Reload and display history."""
         entries = self.history.get_all()
 
-        # Remove old items
         for widget in self.table_frame.winfo_children():
             widget.destroy()
 
@@ -106,7 +101,6 @@ class HistoryPanel(ctk.CTkFrame):
             self.count_label.configure(text="0 history")
             return
 
-        # Table header
         header_row = ctk.CTkFrame(self.table_frame, fg_color="transparent")
         header_row.pack(fill="x", pady=(5, 2))
 
@@ -122,16 +116,13 @@ class HistoryPanel(ctk.CTkFrame):
             )
             lbl.pack(side="left", padx=(5, 0))
 
-        # Separator
         separator = ctk.CTkFrame(self.table_frame, height=1, fg_color="#555555")
         separator.pack(fill="x", padx=5)
 
-        # Data rows
         for idx, entry in enumerate(entries, start=1):
             row_frame = ctk.CTkFrame(self.table_frame, fg_color="transparent")
             row_frame.pack(fill="x", pady=1)
 
-            # Click binding
             row_frame.bind("<Button-1>", lambda e, eid=idx - 1: self._show_detail(eid))
             data = [
                 (str(idx), 40),

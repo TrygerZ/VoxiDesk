@@ -7,7 +7,7 @@ echo            VoxiDesk v3.0
 echo ========================================
 echo.
 
-:: Cek venv
+:: Check venv
 if not exist "venv\Scripts\activate.bat" (
     echo [ERROR] Virtual environment not found.
     echo.
@@ -17,10 +17,10 @@ if not exist "venv\Scripts\activate.bat" (
     exit /b 1
 )
 
-:: Aktivasi venv
+:: Activate venv
 call "venv\Scripts\activate.bat"
 
-:: Cek dependencies
+:: Check dependencies
 python -c "import customtkinter" 2>nul
 if errorlevel 1 (
     echo [ERROR] Dependencies not installed.
@@ -31,26 +31,12 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: Copy CUDA DLL ke folder CTranslate2 (biar bisa detect GPU)
-python -c "
-import os, shutil, site
-src = os.path.join(site.getsitepackages()[0], 'nvidia', 'cublas', 'bin')
-dst = os.path.join(site.getsitepackages()[0], 'ctranslate2')
-if os.path.exists(src):
-    for f in os.listdir(src):
-        if f.endswith('.dll'):
-            shutil.copy2(os.path.join(src, f), os.path.join(dst, f))
-    print('[INFO] CUDA DLLs copied to CTranslate2')
-else:
-    print('[INFO] CUDA not found - running on CPU')
-" 2>nul
-
-:: Jalankan aplikasi
+:: Start the application
 echo [INFO] Starting application...
 echo.
 python main.py
 
-:: Deaktivasi venv
+:: Deactivate venv
 deactivate
 echo.
 echo [INFO] Application closed.
