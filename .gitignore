@@ -1,0 +1,27 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+build/
+dist/
+*.spec
+
+# Data lokal
+history.json
+settings.json
+
+# IDE
+.vscode/
+.idea/
+
+# FFmpeg binary files (too large for GitHub)
+ffmpeg/bin/*.dll
+ffmpeg/bin/*.exe
+
+# OS
+Thumbs.db
+.DS_Store
+
+# FFmpeg (binary sudah termasuk, tapi kalau mau di-exclude)
+# ffmpeg/
