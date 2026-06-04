@@ -46,16 +46,17 @@ class AppSettings:
 
     def load(self) -> dict:
         """Load settings from JSON file."""
-        try:
-            if self._path.exists():
-                with open(self._path, "r", encoding="utf-8") as f:
-                    self._settings = json.load(f)
-            else:
+        with self._lock:
+            try:
+                if self._path.exists():
+                    with open(self._path, "r", encoding="utf-8") as f:
+                        self._settings = json.load(f)
+                else:
+                    self._settings = dict(DEFAULT_SETTINGS)
+                    self.save()
+            except (json.JSONDecodeError, OSError):
                 self._settings = dict(DEFAULT_SETTINGS)
                 self.save()
-        except (json.JSONDecodeError, OSError):
-            self._settings = dict(DEFAULT_SETTINGS)
-            self.save()
         return self._settings
 
     def save(self):

@@ -36,6 +36,7 @@ class TranscriptionWorker(threading.Thread):
 
     def run(self):
         """Run transcription in the background thread."""
+        transcriber = None
         try:
             # Send model loading status
             self.progress_queue.put(
@@ -175,7 +176,8 @@ class TranscriptionWorker(threading.Thread):
             transcriber.unload_model()
 
         except Exception as e:
-            transcriber.unload_model()
+            if transcriber is not None:
+                transcriber.unload_model()
             import traceback
             error_msg = f"{type(e).__name__}: {str(e)}"
             error_detail = traceback.format_exc()

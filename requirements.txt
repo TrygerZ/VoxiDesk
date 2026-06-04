@@ -1,11 +1,8 @@
 customtkinter>=5.2.0
 faster-whisper>=1.0.0
 
-# ⚠️ CUDA: Untuk GPU NVIDIA, install torch dengan CUDA dulu:
-#    pip install torch --index-url https://download.pytorch.org/whl/cu124
-#    lalu jalankan: pip install -r requirements.txt
-#    (pastikan tidak meng-overwrite torch CUDA dengan versi CPU)
-torch>=2.0.0
+# ⚠️ CUDA: Project sudah tanpa PyTorch. CUDA via CTranslate2 langsung.
+#    Untuk GPU, pastikan NVIDIA CUDA Toolkit terinstall di sistem.
 Pillow>=10.0.0
 tkinterdnd2>=0.3.0
 fpdf2>=2.7.0

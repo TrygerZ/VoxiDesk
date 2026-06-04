@@ -328,6 +328,11 @@ class SettingsPanel(ctk.CTkFrame):
 
         if "default_device" in settings:
             dev = settings["default_device"]
+            # Validate device is available, fallback to auto if not
+            if dev != "auto":
+                available_types = {d["type"] for d in self.devices if d["available"]}
+                if dev not in available_types:
+                    dev = "auto"
             self.device_var.set(dev)
             # Find matching display
             for val in self.device_menu.cget("values"):

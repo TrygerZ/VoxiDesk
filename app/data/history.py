@@ -33,16 +33,13 @@ class History:
 
     def load(self) -> list[dict]:
         """Load history from JSON file."""
-        try:
-            if self._path.exists():
-                with open(self._path, "r", encoding="utf-8") as f:
-                    self._entries = json.load(f)
-            else:
+        with self._lock:
+            try:
+                if self._path.exists():
+                    with open(self._path, "r", encoding="utf-8") as f:
+                        self._entries = json.load(f)
+            except (json.JSONDecodeError, OSError):
                 self._entries = []
-                self.save()
-        except (json.JSONDecodeError, OSError):
-            self._entries = []
-            self.save()
         # Sort newest first
         self._entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
         return self._entries

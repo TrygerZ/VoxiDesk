@@ -677,8 +677,8 @@ class MainWindow(ctk.CTkFrame):
                     self._on_cancelled()
             except Empty:
                 pass
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[VoxiDesk] Queue error: {e}")
 
         self.after(200, self._poll_queues)
 

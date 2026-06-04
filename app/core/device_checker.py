@@ -18,6 +18,14 @@ def _check_nvidia_smi() -> list[str]:
     return []
 
 
+def _get_cuda_device_count() -> int:
+    """Safely get CUDA device count from CTranslate2."""
+    try:
+        return ctranslate2.get_cuda_device_count()
+    except Exception:
+        return 0
+
+
 def get_available_devices() -> list[dict]:
     """
     Detect all available devices for inference.
@@ -40,7 +48,7 @@ def get_available_devices() -> list[dict]:
     })
 
     # Cek CUDA via CTranslate2 (tidak perlu PyTorch)
-    cuda_count = ctranslate2.get_cuda_device_count()
+    cuda_count = _get_cuda_device_count()
     if cuda_count > 0:
         nvidia_gpus = _check_nvidia_smi()
         for i in range(cuda_count):
@@ -81,7 +89,7 @@ def get_default_device() -> str:
     Auto-select default device.
     Priority: CUDA > CPU
     """
-    if ctranslate2.get_cuda_device_count() > 0:
+    if _get_cuda_device_count() > 0:
         return "cuda"
     return "cpu"
 
@@ -99,7 +107,7 @@ def get_cuda_status() -> dict:
             - nvidia_gpus (list[str]): GPUs from nvidia-smi
             - install_hint (str | None)
     """
-    cuda_count = ctranslate2.get_cuda_device_count()
+    cuda_count = _get_cuda_device_count()
     nvidia_gpus = _check_nvidia_smi()
 
     status = {

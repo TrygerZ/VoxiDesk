@@ -19,9 +19,10 @@ class Transcriber:
         if self.device and self.device.startswith("cpu"):
             compute_type = "int8"
 
+        device = self.device or "cpu"
         self.model = WhisperModel(
             self.model_name,
-            device=self.device or "cuda",
+            device=device,
             compute_type=compute_type,
         )
 
