@@ -48,13 +48,8 @@ class App:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _create_root(self):
-        """Create root window with tkinterdnd2 support if available."""
+        """Create root window."""
         root = ctk.CTk()
-        try:
-            from tkinterdnd2.TkinterDnD import _require
-            _require(root)
-        except Exception:
-            pass  # DnD not available on this platform
         return root
 
     def _set_icon(self):
