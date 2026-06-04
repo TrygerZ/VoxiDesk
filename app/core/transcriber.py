@@ -98,8 +98,3 @@ class Transcriber:
         if self.model is not None:
             del self.model
             self.model = None
-        try:
-            import torch
-            torch.cuda.empty_cache()
-        except Exception:
-            pass  # CUDA cache clear may fail, ignore

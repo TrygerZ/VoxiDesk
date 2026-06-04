@@ -1,7 +1,7 @@
 """Detect available devices for running Whisper models."""
 
 import subprocess
-import torch
+import ctranslate2
 
 
 def _check_nvidia_smi() -> list[str]:
@@ -39,12 +39,12 @@ def get_available_devices() -> list[dict]:
         "description": "All computers (slowest)",
     })
 
-    # Cek CUDA via torch
-    cuda_available = torch.cuda.is_available()
-    if cuda_available:
-        cuda_count = torch.cuda.device_count()
+    # Cek CUDA via CTranslate2 (tidak perlu PyTorch)
+    cuda_count = ctranslate2.get_cuda_device_count()
+    if cuda_count > 0:
+        nvidia_gpus = _check_nvidia_smi()
         for i in range(cuda_count):
-            gpu_name = torch.cuda.get_device_name(i)
+            gpu_name = nvidia_gpus[i] if i < len(nvidia_gpus) else f"GPU {i}"
             devices.append({
                 "name": f"CUDA ({gpu_name})",
                 "type": "cuda",
@@ -52,7 +52,7 @@ def get_available_devices() -> list[dict]:
                 "description": f"GPU NVIDIA ({gpu_name})",
             })
     else:
-        # Check if NVIDIA GPU exists but torch CUDA is not installed
+        # Check if NVIDIA GPU exists but CUDA runtime is not available
         nvidia_gpus = _check_nvidia_smi()
         if nvidia_gpus:
             gpu_list = ", ".join(nvidia_gpus)
@@ -61,8 +61,8 @@ def get_available_devices() -> list[dict]:
                 "type": "cuda",
                 "available": False,
                 "description": (
-                    f"GPU {gpu_list} detected, but PyTorch CUDA is not installed.\n"
-                    "Run: pip install torch --index-url https://download.pytorch.org/whl/cu124"
+                    f"GPU {gpu_list} detected, but CUDA is not available.\n"
+                    "Install NVIDIA CUDA Toolkit or use CPU mode."
                 ),
             })
         else:
@@ -81,7 +81,7 @@ def get_default_device() -> str:
     Auto-select default device.
     Priority: CUDA > CPU
     """
-    if torch.cuda.is_available():
+    if ctranslate2.get_cuda_device_count() > 0:
         return "cuda"
     return "cpu"
 
@@ -96,31 +96,25 @@ def get_cuda_status() -> dict:
             - version (str | None)
             - device_count (int)
             - device_name (str | None)
-            - nvidia_gpus (list[str]): GPUs from nvidia-smi (even if torch CUDA is inactive)
-            - install_hint (str | None): Install hint if GPU exists but torch CUDA doesn't
+            - nvidia_gpus (list[str]): GPUs from nvidia-smi
+            - install_hint (str | None)
     """
+    cuda_count = ctranslate2.get_cuda_device_count()
+    nvidia_gpus = _check_nvidia_smi()
+
     status = {
-        "available": torch.cuda.is_available(),
+        "available": cuda_count > 0,
         "version": None,
-        "device_count": 0,
-        "device_name": None,
-        "nvidia_gpus": [],
+        "device_count": cuda_count,
+        "device_name": nvidia_gpus[0] if nvidia_gpus else None,
+        "nvidia_gpus": nvidia_gpus,
         "install_hint": None,
     }
 
-    if status["available"]:
-        status["version"] = torch.version.cuda
-        status["device_count"] = torch.cuda.device_count()
-        status["device_name"] = torch.cuda.get_device_name(0)
-    else:
-        # Check if there's actually an NVIDIA GPU
-        nvidia_gpus = _check_nvidia_smi()
-        if nvidia_gpus:
-            status["nvidia_gpus"] = nvidia_gpus
-            status["install_hint"] = (
-                f"GPU {', '.join(nvidia_gpus)} detected, but PyTorch CUDA is not installed.\n"
-                "Run in terminal (venv active):\n"
-                "  pip install torch --index-url https://download.pytorch.org/whl/cu124"
-            )
+    if cuda_count == 0 and nvidia_gpus:
+        status["install_hint"] = (
+            f"GPU {', '.join(nvidia_gpus)} detected, but CUDA is not available.\n"
+            "Install NVIDIA CUDA Toolkit or use CPU mode."
+        )
 
     return status
