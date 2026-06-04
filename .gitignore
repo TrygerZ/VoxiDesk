@@ -19,9 +19,12 @@ settings.json
 ffmpeg/bin/*.dll
 ffmpeg/bin/*.exe
 
+# FFmpeg development files (dokumentasi, header C, library, preset)
+ffmpeg/doc/
+ffmpeg/include/
+ffmpeg/lib/
+ffmpeg/presets/
+
 # OS
 Thumbs.db
 .DS_Store
-
-# FFmpeg (binary sudah termasuk, tapi kalau mau di-exclude)
-# ffmpeg/
