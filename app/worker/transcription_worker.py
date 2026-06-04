@@ -87,7 +87,8 @@ class TranscriptionWorker(threading.Thread):
                     self._prog = prog_state
 
                 def write(self, s):
-                    sys.__stderr__.write(s)  # pass through to original stderr
+                    if sys.__stderr__ is not None:
+                        sys.__stderr__.write(s)  # pass through to original stderr
                     self._buf += s
                     # Ambil persentase terakhir dari buffer
                     matches = re.findall(r'(\d+)%', self._buf)
@@ -109,7 +110,8 @@ class TranscriptionWorker(threading.Thread):
                         self._buf = self._buf[-8192:]
 
                 def flush(self):
-                    sys.__stderr__.flush()
+                    if sys.__stderr__ is not None:
+                        sys.__stderr__.flush()
 
             original_stderr = sys.stderr
             sys.stderr = _TqdmCapture(self.progress_queue, audio_dur, prog_state)

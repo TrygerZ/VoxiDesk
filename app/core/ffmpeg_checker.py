@@ -3,7 +3,23 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+
+_frozen_base = None
+
+
+def _get_base_dir() -> Path:
+    """Get base directory, using sys._MEIPASS when frozen."""
+    global _frozen_base
+    if _frozen_base is not None:
+        return _frozen_base
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        _frozen_base = Path(sys._MEIPASS)
+    else:
+        _frozen_base = Path(__file__).resolve().parent.parent.parent
+    return _frozen_base
 
 
 def check_ffmpeg() -> dict:
@@ -25,11 +41,7 @@ def check_ffmpeg() -> dict:
     }
 
     # 1. Check bundled FFmpeg in project folder
-    bundled_path = (
-        Path(__file__).resolve().parent.parent.parent
-        / "ffmpeg"
-        / "bin"
-    )
+    bundled_path = _get_base_dir() / "ffmpeg" / "bin"
     bundled_ffmpeg = bundled_path / "ffmpeg.exe"
 
     if bundled_ffmpeg.exists():
@@ -65,11 +77,7 @@ def get_ffprobe_path() -> str | None:
         str path to ffprobe.exe, or None if not found.
     """
     # Check bundled first
-    bundled_path = (
-        Path(__file__).resolve().parent.parent.parent
-        / "ffmpeg"
-        / "bin"
-    )
+    bundled_path = _get_base_dir() / "ffmpeg" / "bin"
     bundled_ffprobe = bundled_path / "ffprobe.exe"
     if bundled_ffprobe.exists():
         return str(bundled_ffprobe)

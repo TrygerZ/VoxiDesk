@@ -13,7 +13,6 @@ from app.ui.progress_panel import ProgressPanel
 from app.ui.preview_panel import PreviewPanel
 from app.ui.history_panel import HistoryPanel
 from app.ui.dialogs import show_error, show_info, show_about
-from app.worker.transcription_worker import TranscriptionWorker
 from app.core.ffmpeg_checker import check_ffmpeg
 from app.core.file_utils import get_audio_duration
 from app.data.history import History
@@ -44,7 +43,7 @@ class MainWindow(ctk.CTkFrame):
         self.result_queue: Queue = Queue()
 
         # Worker state
-        self.worker: TranscriptionWorker | None = None
+        self.worker = None  # TranscriptionWorker (imported lazily)
         self.is_processing = False
 
         # Batch processing state
@@ -359,6 +358,7 @@ class MainWindow(ctk.CTkFrame):
 
         # Start worker for this file
         self.file_start_time = time.time()
+        from app.worker.transcription_worker import TranscriptionWorker
         self.worker = TranscriptionWorker(
             file_path=str(file_path),
             config=config,

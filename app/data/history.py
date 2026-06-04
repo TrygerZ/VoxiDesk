@@ -1,11 +1,17 @@
 """Transcription history management stored in history.json."""
 
 import json
+import os
+import sys
 from pathlib import Path
 from threading import Lock
 
-# Path to project root folder (3 levels up from history.py)
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+# Path to project root folder
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    # Use APPDATA for writable files in frozen app
+    ROOT_DIR = Path(os.environ.get('APPDATA', Path.home())) / "VoxiDesk"
+else:
+    ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class History:

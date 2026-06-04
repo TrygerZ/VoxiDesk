@@ -129,7 +129,12 @@ def show_about(master=None):
     try:
         from PIL import Image
         import os
-        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "assets", "icons", "app.png")
+        import sys
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            base_dir = sys._MEIPASS
+        else:
+            base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+        icon_path = os.path.join(base_dir, "assets", "icons", "app.png")
         if os.path.exists(icon_path):
             icon_img = ctk.CTkImage(Image.open(icon_path), size=(64, 64))
             label_icon = ctk.CTkLabel(dialog, image=icon_img, text="")

@@ -59,13 +59,11 @@ class App:
 
     def _set_icon(self):
         """Set application icon if icon file exists."""
-        icon_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "..",
-            "assets",
-            "icons",
-            "app.ico",
-        )
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            base_dir = sys._MEIPASS
+        else:
+            base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        icon_path = os.path.join(base_dir, "assets", "icons", "app.ico")
         if os.path.exists(icon_path):
             try:
                 self.root.iconbitmap(default=icon_path)

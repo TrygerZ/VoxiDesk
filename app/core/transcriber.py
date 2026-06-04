@@ -2,8 +2,6 @@
 
 import threading
 
-from faster_whisper import WhisperModel
-
 
 class Transcriber:
     """Wrapper for faster-whisper model."""
@@ -15,6 +13,7 @@ class Transcriber:
 
     def load_model(self):
         """Load faster-whisper model into memory."""
+        from faster_whisper import WhisperModel
         compute_type = "float16"
         if self.device and self.device.startswith("cpu"):
             compute_type = "int8"

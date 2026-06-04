@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 # ─── Paths ────────────────────────────────────────
+# Note: build.spec must be run from the project root directory
 ROOT_DIR = Path.cwd()
 APP_DIR = ROOT_DIR / "app"
 ASSETS_DIR = ROOT_DIR / "assets"
@@ -37,6 +38,7 @@ a = Analysis(
         'tiktoken',
         'fpdf',
         'tkinterdnd2',
+        'onnxruntime',
     ],
     hookspath=[],
     hooksconfig={},
@@ -70,15 +72,21 @@ if FFMPEG_DIR.exists():
                 a.binaries += [(f.name, str(f), 'BINARY')]
                 print(f"  Added FFmpeg binary: {f.name}")
 
+# ─── Bundle faster_whisper VAD model ─────────────
+import site as _site
+_fw_assets = Path(_site.getsitepackages()[1]) / "faster_whisper" / "assets"
+if _fw_assets.exists():
+    for _f in _fw_assets.iterdir():
+        if _f.is_file():
+            a.datas += [('faster_whisper/assets/' + _f.name, str(_f), 'DATA')]
+            print(f"  Added VAD asset: {_f.name}")
+
 # ─── PyInstaller EXE ──────────────────────────────
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
     name='VoxiDesk',
     debug=False,
@@ -88,6 +96,7 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
+    exclude_binaries=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

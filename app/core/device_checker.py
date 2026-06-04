@@ -1,7 +1,6 @@
 """Detect available devices for running Whisper models."""
 
 import subprocess
-import ctranslate2
 
 
 def _check_nvidia_smi() -> list[str]:
@@ -21,6 +20,7 @@ def _check_nvidia_smi() -> list[str]:
 def _get_cuda_device_count() -> int:
     """Safely get CUDA device count from CTranslate2."""
     try:
+        import ctranslate2
         return ctranslate2.get_cuda_device_count()
     except Exception:
         return 0
@@ -89,8 +89,12 @@ def get_default_device() -> str:
     Auto-select default device.
     Priority: CUDA > CPU
     """
-    if _get_cuda_device_count() > 0:
-        return "cuda"
+    try:
+        import ctranslate2
+        if ctranslate2.get_cuda_device_count() > 0:
+            return "cuda"
+    except Exception:
+        pass
     return "cpu"
 
 

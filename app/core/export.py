@@ -2,7 +2,15 @@
 
 import datetime
 import os
+import sys
 from pathlib import Path
+
+
+def _get_assets_dir() -> Path:
+    """Get assets directory, using sys._MEIPASS when frozen."""
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        return Path(sys._MEIPASS) / "assets"
+    return Path(__file__).resolve().parent.parent.parent / "assets"
 
 
 def format_timestamp(seconds: float, srt: bool = True) -> str:
@@ -79,7 +87,7 @@ def write_pdf(out_path: Path, text: str, title: str = "Transcription"):
     bold_style = "B"
 
     # Check for DejaVuSans bundled font
-    font_path = Path(__file__).resolve().parent.parent.parent / "assets" / "fonts" / "DejaVuSans.ttf"
+    font_path = _get_assets_dir() / "fonts" / "DejaVuSans.ttf"
     if font_path.exists():
         try:
             pdf.add_font("DejaVu", "", str(font_path), uni=True)
