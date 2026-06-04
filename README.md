@@ -24,8 +24,8 @@ A modern desktop transcription application that converts audio/video files to te
 - ✅ **Transcription History** — Browse past results with details
 - ✅ **Persistent Settings** — Preferences saved automatically
 - ✅ **Cancel Transcription** — Graceful cancellation with partial results
-- ✅ **Bundled FFmpeg** — Fully portable, no system install required
 - ✅ **CUDA Auto-detection** — Automatically uses GPU if available
+- ✅ **Portable FFmpeg** — Detects bundled `ffmpeg/bin/` or system-installed FFmpeg
 - ✅ **File Info** — Name, size, duration display
 
 ### Advanced
@@ -39,15 +39,15 @@ A modern desktop transcription application that converts audio/video files to te
 ## 📋 Prerequisites
 
 - **Python 3.11** — Required for PyTorch CUDA wheels
-- **FFmpeg** — Bundled in `ffmpeg/bin/` (included in repo)
+- **FFmpeg** — Required for audio processing. [Download & setup](#-ffmpeg-setup) below.
 - **NVIDIA GPU** (recommended, optional) — CUDA 12.4 support
 
 ## 🚀 Installation
 
 ### 1. Clone & Setup
 ```bash
-git clone https://github.com/yourusername/voxidesk.git
-cd voxidesk
+git clone https://github.com/TrygerZ/VoxiDesk.git
+cd VoxiDesk
 py -3.11 -m venv venv
 
 # Windows
@@ -62,12 +62,32 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Generate App Icon (Optional)
+### 3. FFmpeg Setup
+
+VoxiDesk requires FFmpeg for audio/video processing. Since the binary files are too large for GitHub, you need to download them manually:
+
+| File | Source |
+|------|--------|
+| `ffmpeg.exe` | [Download FFmpeg](https://ffmpeg.org/download.html) (Windows builds: [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) or [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases)) |
+| `ffprobe.exe` | Included in the same FFmpeg package |
+
+**Quick setup (Windows):**
+1. Download the latest FFmpeg release (e.g., `ffmpeg-release-full.7z`)
+2. Extract `ffmpeg.exe`, `ffprobe.exe`, and the required DLLs into `ffmpeg/bin/`
+3. Or simply place them anywhere and ensure they're in your system `PATH`
+
+Alternatively, run the automated setup script:
+```powershell
+# PowerShell (Windows)
+./setup_ffmpeg.ps1
+```
+
+### 4. Generate App Icon (Optional)
 ```bash
 python generate_icon.py
 ```
 
-### 4. Run
+### 5. Run
 ```bash
 python main.py
 ```
@@ -137,10 +157,10 @@ VoxiDesk/
 │       ├── settings.py             # Settings persistence
 │       └── history.py              # History storage (JSON)
 ├── ffmpeg/
-│   └── bin/                        # Bundled FFmpeg (portable)
+│   └── bin/                        # FFmpeg binaries (download separately, see Installation)
 ├── assets/
 │   └── icons/                      # App icon files
-├── venv/                           # Virtual environment
+├── venv/                           # Virtual environment (excluded from git)
 ├── main.py                         # Application entry point
 ├── run.bat                         # Windows launcher
 ├── build.spec                      # PyInstaller configuration
