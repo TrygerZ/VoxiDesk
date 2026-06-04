@@ -1,8 +1,10 @@
 customtkinter>=5.2.0
 faster-whisper>=1.0.0
 
-# ⚠️ CUDA: Project sudah tanpa PyTorch. CUDA via CTranslate2 langsung.
-#    Untuk GPU, pastikan NVIDIA CUDA Toolkit terinstall di sistem.
+# CUDA: Untuk akselerasi GPU NVIDIA. Wajib install nvidia-cublas-cu12
+# DLL cuBLAS akan otomatis di-copy ke folder CTranslate2 pas pertama jalan.
+nvidia-cublas-cu12>=12.0.0
+
 Pillow>=10.0.0
 tkinterdnd2>=0.3.0
 fpdf2>=2.7.0
