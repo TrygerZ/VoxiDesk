@@ -79,12 +79,7 @@ VoxiDesk requires FFmpeg for audio/video processing. Since the binary files are 
 > **Note:** The `ffmpeg/bin/` folder should contain `ffmpeg.exe`, `ffprobe.exe`, and the required DLLs.
 > The folder is kept in the repo but the binary files are excluded (too large for GitHub).
 
-### 4. Generate App Icon (Optional)
-```bash
-python generate_icon.py
-```
-
-### 5. Run
+### 4. Run
 ```bash
 python main.py
 ```
