@@ -1,6 +1,7 @@
 """Wrapper for faster-whisper (CTranslate2)."""
 
 import threading
+import gc
 
 
 class Transcriber:
@@ -98,3 +99,6 @@ class Transcriber:
         if self.model is not None:
             del self.model
             self.model = None
+            
+            # Force garbage collection to free C++ bindings and CUDA memory
+            gc.collect()

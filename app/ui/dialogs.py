@@ -105,6 +105,67 @@ def show_info(title: str, message: str, master=None):
     dialog.wait_window()
 
 
+def show_confirm(title: str, message: str, master=None) -> bool:
+    """Show confirmation dialog and return True if Yes."""
+    if master is not None:
+        dialog = ctk.CTkToplevel(master)
+    else:
+        dialog = ctk.CTkToplevel()
+    dialog.title(title)
+    dialog.geometry("400x200")
+    dialog.resizable(False, False)
+    if master is not None:
+        dialog.transient(master)
+    dialog.grab_set()
+
+    # Center on parent
+    dialog.update_idletasks()
+    if master is not None:
+        x = master.winfo_x() + (master.winfo_width() - 400) // 2
+        y = master.winfo_y() + (master.winfo_height() - 200) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+    label_icon = ctk.CTkLabel(dialog, text="❓", font=("Segoe UI", 36))
+    label_icon.pack(pady=(15, 5))
+
+    label_msg = ctk.CTkLabel(
+        dialog, text=message, wraplength=350, font=("Segoe UI", 13)
+    )
+    label_msg.pack(pady=(5, 10), padx=20, fill="both", expand=True)
+
+    result = [False]
+
+    def on_yes():
+        result[0] = True
+        close()
+
+    def on_no():
+        result[0] = False
+        close()
+
+    def close():
+        dialog.grab_release()
+        if master is not None:
+            master.focus_set()
+        dialog.destroy()
+
+    btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+    btn_frame.pack(pady=(0, 15))
+
+    btn_yes = ctk.CTkButton(btn_frame, text="Yes", command=on_yes, width=80)
+    btn_yes.pack(side="left", padx=10)
+
+    btn_no = ctk.CTkButton(
+        btn_frame, text="No", command=on_no, width=80, 
+        fg_color="transparent", border_width=1, text_color=("black", "white")
+    )
+    btn_no.pack(side="left", padx=10)
+
+    dialog.protocol("WM_DELETE_WINDOW", on_no)
+    dialog.wait_window()
+    return result[0]
+
+
 def show_about(master=None):
     """Show About dialog."""
     if master is not None:
@@ -144,7 +205,8 @@ def show_about(master=None):
     )
     label_title.pack()
 
-    label_ver = ctk.CTkLabel(dialog, text="Version 1.0.0", font=("Segoe UI", 12))
+    from app.app import VERSION
+    label_ver = ctk.CTkLabel(dialog, text=f"Version {VERSION}", font=("Segoe UI", 12))
     label_ver.pack()
 
     label_desc = ctk.CTkLabel(

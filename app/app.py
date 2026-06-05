@@ -14,6 +14,7 @@ import customtkinter as ctk
 from app.ui.main_window import MainWindow
 from app.data.settings import AppSettings
 
+VERSION = "3.0"
 
 class App:
     """Main VoxiDesk application."""
@@ -27,7 +28,7 @@ class App:
         ctk.set_default_color_theme("blue")
 
         self.root = ctk.CTk()
-        self.root.title("VoxiDesk v3.0")
+        self.root.title(f"VoxiDesk v{VERSION}")
 
         w_width = self.settings.get("window_width", 900)
         w_height = self.settings.get("window_height", 700)

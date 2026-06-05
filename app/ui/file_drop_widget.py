@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 
+import re
 import customtkinter as ctk
 from tkinter import filedialog, StringVar
 
@@ -146,18 +147,19 @@ class FileDropWidget(ctk.CTkFrame):
 
     def _on_drag_enter(self):
         """Visual feedback when drag enters the area."""
-        self.drop_frame.configure(border_color="#3B8ED0")
+        if self.winfo_exists():
+            self.drop_frame.configure(border_color="#3B8ED0")
 
     def _on_drag_leave(self):
         """Visual feedback when drag leaves the area."""
-        self.drop_frame.configure(border_color="#555555")
+        if self.winfo_exists():
+            self.drop_frame.configure(border_color="#555555")
 
     def _on_drop(self, event):
         """Handler when files are dropped (multi-file support)."""
         self._on_drag_leave()
         raw = event.data.strip()
         # Handle multiple files format: {path1} {path2}
-        import re
         paths = re.findall(r'\{([^}]+)\}', raw)
         if not paths:
             paths = [raw.strip().strip('{}')]

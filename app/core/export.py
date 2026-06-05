@@ -94,9 +94,10 @@ def write_pdf(out_path: Path, text: str, title: str = "Transcription"):
                 pdf.add_font("DejaVu", "B", str(font_path), uni=True)
             font_family = "DejaVu"
             bold_style = "B"
-        except Exception:
-            font_family = "Helvetica"
-            bold_style = "B"
+        except Exception as e:
+            raise RuntimeError(f"Failed to load Unicode font for PDF export: {e}")
+    else:
+        raise RuntimeError("Unicode font DejaVuSans.ttf not found. Cannot safely export PDF.")
 
     # Title
     pdf.set_font(font_family, bold_style, 16)
@@ -165,7 +166,11 @@ def export_results(
     if "pdf" in formats:
         pdf_path = base_path.with_suffix(".pdf")
         if full_text:
-            write_pdf(pdf_path, full_text, title=base_path.name)
-            saved_files["pdf"] = pdf_path
+            try:
+                write_pdf(pdf_path, full_text, title=base_path.name)
+                saved_files["pdf"] = pdf_path
+            except Exception as e:
+                import logging
+                logging.warning(f"Skipping PDF export: {e}")
 
     return saved_files

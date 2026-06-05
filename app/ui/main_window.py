@@ -1,6 +1,9 @@
 """Main application window for VoxiDesk."""
 
 import time
+import threading
+import gc
+import logging
 from pathlib import Path
 from queue import Queue, Empty
 from datetime import datetime
@@ -45,6 +48,7 @@ class MainWindow(ctk.CTkFrame):
         # Worker state
         self.worker = None  # TranscriptionWorker (imported lazily)
         self.is_processing = False
+        self.is_cancelling = False
 
         # Batch processing state
         self.batch_files: list[Path] = []
@@ -82,7 +86,7 @@ class MainWindow(ctk.CTkFrame):
 
         self.btn_theme = ctk.CTkButton(
             self.top_bar,
-            text="ðŸŒ™ Dark",
+            text="🌙 Dark",
             command=self._toggle_theme,
             width=80,
             height=28,
@@ -201,8 +205,16 @@ class MainWindow(ctk.CTkFrame):
         """Save settings from UI to file."""
         settings = self.settings_panel.get_settings_dict()
         settings["theme"] = ctk.get_appearance_mode()
-        settings["window_width"] = self.winfo_width()
-        settings["window_height"] = self.winfo_height()
+        
+        # Only save window dimensions if it's not minimized and has a valid size
+        toplevel = self.winfo_toplevel()
+        if toplevel.state() != "iconic":
+            w = self.winfo_width()
+            h = self.winfo_height()
+            if w > 100 and h > 100:
+                settings["window_width"] = w
+                settings["window_height"] = h
+                
         self.app_settings.update(settings)
 
     def _on_file_changed(self, files: list[Path]):
@@ -255,6 +267,20 @@ class MainWindow(ctk.CTkFrame):
         )
         if not output_dir:
             return  # User cancel
+
+        # Verify writability
+        try:
+            test_path = Path(output_dir)
+            test_path.mkdir(parents=True, exist_ok=True)
+            test_file = test_path / ".voxidesk_test_write"
+            test_file.touch()
+            test_file.unlink()
+        except OSError as e:
+            show_error(
+                "Folder Access Error",
+                f"Cannot write to the selected folder:\n{output_dir}\n\nError: {e}\n\nPlease select a different folder."
+            )
+            return
 
         config["output_dir"] = output_dir
 
@@ -370,9 +396,24 @@ class MainWindow(ctk.CTkFrame):
         btn_frame.pack(pady=(0, 15))
 
         def do_cancel():
-            dialog.destroy()
-            if self.worker:
-                self.worker.cancel()
+            if dialog.winfo_exists():
+                dialog.destroy()
+            if self.worker and not self.is_cancelling:
+                self.is_cancelling = True
+                self.btn_cancel.configure(state="disabled")
+                self.progress_panel.set_status("Cancelling...")
+                
+                worker_ref = self.worker
+                def cancel_thread():
+                    worker_ref.cancel()
+                    # Block until the worker thread actually exits to prevent orphaned threads
+                    # holding onto CUDA VRAM. Since cancel_flag is set, it will exit soon.
+                    worker_ref.join(timeout=3.0)
+                    gc.collect()
+                    if self.worker is worker_ref:
+                        self.result_queue.put(("cancelled", None))
+                    
+                threading.Thread(target=cancel_thread, daemon=True).start()
 
         ctk.CTkButton(
             btn_frame, text="Yes, Cancel", command=do_cancel,
@@ -380,25 +421,34 @@ class MainWindow(ctk.CTkFrame):
         ).pack(side="left", padx=5)
 
         ctk.CTkButton(
-            btn_frame, text="Continue", command=dialog.destroy,
+            btn_frame, text="Continue", command=lambda: dialog.winfo_exists() and dialog.destroy(),
             width=100,
         ).pack(side="left", padx=5)
 
     def _on_progress(self, current: int, total: int, text: str):
         """Handler for progress updates from worker."""
         if total > 0:
-            pct = current / max(total, 1)
+            pct = current / total
             self.progress_panel.update_progress(pct)
         if text and text.strip():
             self.progress_panel.set_status(text.strip())
             # Log only every 5% change to prevent spam
-            new_pct = int((current / max(total, 1)) * 100) if total > 0 else -1
-            if new_pct < 0 or self._last_logged_pct < 0 or (new_pct - self._last_logged_pct) >= 5:
-                self.progress_panel.append_log(f"  {text.strip()}")
-                self._last_logged_pct = new_pct
+            if total > 0:
+                new_pct = int((current / total) * 100)
+                if getattr(self, "_last_logged_pct", -1) < 0 or (new_pct - getattr(self, "_last_logged_pct", -1)) >= 5:
+                    self.progress_panel.append_log(f"  {text.strip()}")
+                    self._last_logged_pct = new_pct
+            else:
+                # If total is 0, don't spam the log, just log once or rely on set_status
+                if getattr(self, "_last_logged_pct", -1) != -2:
+                    self.progress_panel.append_log(f"  {text.strip()}")
+                    self._last_logged_pct = -2
 
     def _on_complete(self, result: dict):
         """Handler when one file is done transcribing."""
+        if not self.is_processing:
+            return
+
         elapsed = time.time() - self.file_start_time
         self.progress_panel.set_indeterminate(False)
         self.progress_panel.update_progress(1.0)
@@ -446,8 +496,9 @@ class MainWindow(ctk.CTkFrame):
         self.batch_results.append(result)
 
         # Continue to next file
-        self.batch_index += 1
-        self._process_next_file()
+        if not self.is_cancelling:
+            self.batch_index += 1
+            self._process_next_file()
 
     def _on_batch_complete(self):
         """Handler when all files are processed."""
@@ -487,6 +538,9 @@ class MainWindow(ctk.CTkFrame):
 
     def _on_error(self, error: dict):
         """Handler when an error occurs."""
+        if self.is_cancelling:
+            return
+
         self.progress_panel.set_indeterminate(False)
         self.progress_panel.update_progress(0)
         self.progress_panel.set_status("❌ Error")
@@ -499,11 +553,11 @@ class MainWindow(ctk.CTkFrame):
 
         # Ask whether to continue to next file
         if self.batch_index < self.batch_total - 1:
-            from tkinter import messagebox
-            proceed = messagebox.askyesno(
+            from app.ui.dialogs import show_confirm
+            proceed = show_confirm(
                 "Continue Batch?",
                 "File failed to process. Continue to next file?",
-                parent=self.winfo_toplevel()
+                master=self.winfo_toplevel()
             )
             if proceed:
                 self.batch_index += 1
@@ -515,6 +569,7 @@ class MainWindow(ctk.CTkFrame):
 
     def _on_cancelled(self):
         """Handler when transcription is cancelled."""
+        self.is_cancelling = False
         self.progress_panel.set_indeterminate(False)
         self.progress_panel.update_progress(0)
         self.progress_panel.set_status("⏹ Cancelled")
@@ -542,10 +597,15 @@ class MainWindow(ctk.CTkFrame):
             audio_duration = result.get("duration", 0)
             config = self.batch_config
 
+            try:
+                file_size = file_path.stat().st_size
+            except OSError:
+                file_size = 0
+
             entry = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "file_name": file_path.name,
-                "file_size": file_path.stat().st_size,
+                "file_size": file_size,
                 "model": config.get("model", ""),
                 "language": config.get("language", ""),
                 "task": config.get("task", ""),
@@ -558,12 +618,24 @@ class MainWindow(ctk.CTkFrame):
                 "text_preview": text[:300] if text else "",
             }
             self.history.add_entry(entry)
-        except Exception:
-            pass  # Ignore history errors, not critical
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to save history entry: {e}")
+            try:
+                self.progress_panel.append_log(f"⚠️ Warning: Failed to save history ({e})")
+                from app.ui.dialogs import show_error
+                show_error(
+                    "History Save Error",
+                    f"Failed to save transcription history:\n{e}",
+                    master=self.winfo_toplevel()
+                )
+            except Exception:
+                pass
 
     def _reset_ui(self):
         """Reset UI to initial state."""
         self.is_processing = False
+        self.is_cancelling = False
         self.worker = None
         self.batch_files = []
         self.batch_index = 0
@@ -591,26 +663,26 @@ class MainWindow(ctk.CTkFrame):
             return
 
         try:
-            latest_progress = None
+            progress_updates = []
             try:
                 while True:
                     msg = self.progress_queue.get_nowait()
                     if msg[0] == "progress":
                         _, current, total, text = msg
                         if total > 0:
-                            latest_progress = (current, total, text)
+                            progress_updates.append((current, total, text))
                     elif msg[0] == "status":
                         _, text = msg
                         self.progress_panel.set_status(text)
                         self.progress_panel.append_log(f"ℹ️ {text}")
                     else:
-                        break
+                        print(f"[VoxiDesk] Unknown progress message: {msg}")
+                        continue
             except Empty:
                 pass
 
             # ⬇️ Call _on_progress OUTSIDE the try/except Empty block
-            if latest_progress is not None:
-                cur, tot, txt = latest_progress
+            for cur, tot, txt in progress_updates:
                 self._on_progress(cur, tot, txt)
 
             try:

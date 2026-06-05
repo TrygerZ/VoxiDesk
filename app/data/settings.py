@@ -11,8 +11,7 @@ DEFAULT_SETTINGS = {
     "default_language": "id",
     "default_task": "transcribe",
     "default_device": "auto",
-    "default_formats": ["txt", "srt", "vtt"],
-    "default_output_dir": "",
+    "default_formats": ["txt", "srt", "vtt", "pdf"],
     "window_width": 900,
     "window_height": 700,
 }
@@ -53,41 +52,53 @@ class AppSettings:
                         self._settings = json.load(f)
                 else:
                     self._settings = dict(DEFAULT_SETTINGS)
-                    self.save()
+                    self._save_internal()
             except (json.JSONDecodeError, OSError):
+                if self._path.exists() and self._path.stat().st_size > 0:
+                    try:
+                        import shutil
+                        shutil.copy2(self._path, self._path.with_suffix(".json.bak"))
+                    except OSError:
+                        pass
                 self._settings = dict(DEFAULT_SETTINGS)
-                self.save()
+                self._save_internal()
         return self._settings
+
+    def _save_internal(self):
+        """Write settings to disk (caller MUST hold self._lock)."""
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self._path, "w", encoding="utf-8") as f:
+            json.dump(self._settings, f, indent=2, ensure_ascii=False)
 
     def save(self):
         """Save settings to JSON file."""
-        try:
-            with self._lock:
-                self._path.parent.mkdir(parents=True, exist_ok=True)
-                with open(self._path, "w", encoding="utf-8") as f:
-                    json.dump(self._settings, f, indent=2, ensure_ascii=False)
-        except OSError:
-            pass  # Failed to save, ignore
+        with self._lock:
+            self._save_internal()
 
     def get(self, key: str, default=None):
         """Get a setting value."""
-        return self._settings.get(key, default)
+        with self._lock:
+            return self._settings.get(key, default)
 
     def set(self, key: str, value):
         """Set a setting value and save to file."""
-        self._settings[key] = value
-        self.save()
+        with self._lock:
+            self._settings[key] = value
+            self._save_internal()
 
     def update(self, data: dict):
         """Update multiple settings at once."""
-        self._settings.update(data)
-        self.save()
+        with self._lock:
+            self._settings.update(data)
+            self._save_internal()
 
     def get_all(self) -> dict:
         """Return all settings."""
-        return dict(self._settings)
+        with self._lock:
+            return dict(self._settings)
 
     def reset_to_defaults(self):
         """Reset all settings to defaults."""
-        self._settings = dict(DEFAULT_SETTINGS)
-        self.save()
+        with self._lock:
+            self._settings = dict(DEFAULT_SETTINGS)
+            self._save_internal()

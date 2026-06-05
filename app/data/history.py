@@ -39,20 +39,27 @@ class History:
                     with open(self._path, "r", encoding="utf-8") as f:
                         self._entries = json.load(f)
             except (json.JSONDecodeError, OSError):
+                if self._path.exists() and self._path.stat().st_size > 0:
+                    try:
+                        import shutil
+                        shutil.copy2(self._path, self._path.with_suffix(".json.bak"))
+                    except OSError:
+                        pass
                 self._entries = []
-        # Sort newest first
-        self._entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+            # Sort newest first
+            self._entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
         return self._entries
+
+    def _save_internal(self):
+        """Write entries to disk (caller MUST hold self._lock)."""
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self._path, "w", encoding="utf-8") as f:
+            json.dump(self._entries, f, indent=2, ensure_ascii=False)
 
     def save(self):
         """Save history to JSON file."""
-        try:
-            with self._lock:
-                self._path.parent.mkdir(parents=True, exist_ok=True)
-                with open(self._path, "w", encoding="utf-8") as f:
-                    json.dump(self._entries, f, indent=2, ensure_ascii=False)
-        except OSError:
-            pass
+        with self._lock:
+            self._save_internal()
 
     MAX_HISTORY = 1000
 
@@ -74,11 +81,12 @@ class History:
                 - output_files (dict): Dict format -> path
                 - text_preview (str): Result text preview
         """
-        self._entries.insert(0, entry)  # Insert at beginning (newest first)
-        # Limit history
-        if len(self._entries) > self.MAX_HISTORY:
-            self._entries = self._entries[:self.MAX_HISTORY]
-        self.save()
+        with self._lock:
+            self._entries.insert(0, entry)  # Insert at beginning (newest first)
+            # Limit history
+            if len(self._entries) > self.MAX_HISTORY:
+                self._entries = self._entries[:self.MAX_HISTORY]
+            self._save_internal()
 
     def get_all(self) -> list[dict]:
         """Return all history entries."""
@@ -90,8 +98,9 @@ class History:
 
     def clear(self):
         """Clear all history."""
-        self._entries = []
-        self.save()
+        with self._lock:
+            self._entries = []
+            self._save_internal()
 
     def count(self) -> int:
         """Return the number of history entries."""

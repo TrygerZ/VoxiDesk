@@ -2,6 +2,9 @@
 
 import customtkinter as ctk
 
+import threading
+import logging
+
 from app.core.device_checker import get_available_devices, get_cuda_status
 
 # Model info: (label, ram_estimation, speed, tooltip)
@@ -33,6 +36,7 @@ DEVICE_TOOLTIPS = {
 
 # Supported language options
 LANGUAGE_OPTIONS = {
+    "auto": "Auto-detect",
     "id": "Indonesia",
     "en": "English",
     "ja": "日本語 (Japanese)",
@@ -66,8 +70,8 @@ class SettingsPanel(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
 
-        self.devices = get_available_devices()
-        self.cuda_status = get_cuda_status()
+        self.devices = []
+        self.cuda_status = {"available": False, "nvidia_gpus": [], "install_hint": None}
 
         # Variables
         self.model_var = ctk.StringVar(value="small")
@@ -80,6 +84,66 @@ class SettingsPanel(ctk.CTkFrame):
         self.format_pdf_var = ctk.BooleanVar(value=True)
 
         self._build_ui()
+        
+        # Load devices asynchronously
+        self.device_menu.configure(state="disabled")
+        self.device_menu.set("Detecting...")
+        threading.Thread(target=self._load_devices_async, daemon=True).start()
+
+    def _load_devices_async(self):
+        """Load devices in background to prevent UI freeze."""
+        try:
+            self.devices = get_available_devices()
+            self.cuda_status = get_cuda_status()
+        except Exception as e:
+            logging.error(f"Failed to detect devices: {e}")
+            self.devices = []
+            self.cuda_status = {"available": False, "nvidia_gpus": [], "install_hint": None}
+        finally:
+            self.after(0, self._on_devices_loaded)
+
+    def _on_devices_loaded(self):
+        """Update UI with loaded devices."""
+        device_values = ["auto — Auto select"]
+        seen_types = set()
+        for dev in self.devices:
+            if dev["available"] and dev["type"] not in seen_types:
+                device_values.append(dev["type"])
+                seen_types.add(dev["type"])
+                
+        self.device_menu.configure(values=device_values, state="normal")
+        
+        dev = self.device_var.get()
+        if dev != "auto":
+            available_types = {d["type"] for d in self.devices if d["available"]}
+            if dev not in available_types:
+                dev = "auto"
+                
+        matched = False
+        for val in device_values:
+            if dev in val.lower():
+                self.device_menu.set(val)
+                self.device_var.set(dev)
+                matched = True
+                break
+        if not matched:
+            self.device_menu.set("auto — Auto select")
+            self.device_var.set("auto")
+            
+        self._on_device_change(self.device_menu.get())
+
+        if self.cuda_status.get("available"):
+            cuda_text = "✅ CUDA Available"
+            cuda_color = "#4CAF50"
+        elif self.cuda_status.get("nvidia_gpus"):
+            gpu_list = ", ".join(self.cuda_status["nvidia_gpus"])
+            cuda_text = f"⚠️ {gpu_list} (install CUDA torch)"
+            cuda_color = "#FF9800"
+        else:
+            cuda_text = "❌ CUDA Not Available"
+            cuda_color = "#FF5252"
+
+        self.cuda_label.configure(text=cuda_text, text_color=cuda_color)
 
     def _build_ui(self):
         """Build settings UI components."""
@@ -133,8 +197,9 @@ class SettingsPanel(ctk.CTkFrame):
         )
         self.language_menu.grid(row=1, column=1, columnspan=2, sticky="w", pady=5)
 
+        current_lang = self.language_var.get()
         default_lang = next(
-            (d for d in language_display if d.startswith("id")),
+            (d for d in language_display if d.startswith(current_lang)),
             language_display[0]
         )
         self.language_menu.set(default_lang)
@@ -173,15 +238,9 @@ class SettingsPanel(ctk.CTkFrame):
             self.grid_frame, text="Device:", font=("Segoe UI", 12), anchor="w"
         ).grid(row=4, column=0, sticky="w", padx=(0, 10), pady=5)
 
-        device_values = ["auto — Auto select"]
-        seen_types = set()
-        for dev in self.devices:
-            if dev["available"] and dev["type"] not in seen_types:
-                device_values.append(dev["type"])
-                seen_types.add(dev["type"])
         self.device_menu = ctk.CTkOptionMenu(
             self.grid_frame,
-            values=device_values,
+            values=["Detecting..."],
             variable=self.device_var,
             command=self._on_device_change,
             width=200,
@@ -189,34 +248,18 @@ class SettingsPanel(ctk.CTkFrame):
         self.device_menu.grid(row=4, column=1, sticky="w", pady=5)
 
         # CUDA status
-        if self.cuda_status["available"]:
-            cuda_text = "✅ CUDA Available"
-            cuda_color = "#4CAF50"
-        elif self.cuda_status["nvidia_gpus"]:
-            gpu_list = ", ".join(self.cuda_status["nvidia_gpus"])
-            cuda_text = f"⚠️ {gpu_list} (install CUDA torch)"
-            cuda_color = "#FF9800"
-        else:
-            cuda_text = "❌ CUDA Not Available"
-            cuda_color = "#FF5252"
-
         self.cuda_label = ctk.CTkLabel(
             self.grid_frame,
-            text=cuda_text,
+            text="Detecting CUDA...",
             font=("Segoe UI", 11),
-            text_color=cuda_color,
+            text_color="#888888",
             anchor="w",
         )
         self.cuda_label.grid(row=4, column=2, sticky="w", padx=(10, 0), pady=5)
 
-        device_info_text = (
-            self.cuda_status.get("install_hint")
-            if not self.cuda_status["available"] and self.cuda_status["nvidia_gpus"]
-            else DEVICE_TOOLTIPS.get("auto", "")
-        )
         self.device_info = ctk.CTkLabel(
             self.grid_frame,
-            text=device_info_text,
+            text="Detecting hardware capabilities...",
             font=("Segoe UI", 11),
             text_color="#888888",
             anchor="w",
@@ -324,18 +367,8 @@ class SettingsPanel(ctk.CTkFrame):
 
         if "default_device" in settings:
             dev = settings["default_device"]
-            # Validate device is available, fallback to auto if not
-            if dev != "auto":
-                available_types = {d["type"] for d in self.devices if d["available"]}
-                if dev not in available_types:
-                    dev = "auto"
             self.device_var.set(dev)
-            # Find matching display
-            for val in self.device_menu.cget("values"):
-                if dev in val.lower():
-                    self.device_menu.set(val)
-                    break
-            self._on_device_change(self.device_menu.get())
+            # Validation logic is handled asynchronously in _on_devices_loaded
 
         if "default_formats" in settings:
             formats = settings["default_formats"]

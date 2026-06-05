@@ -1,9 +1,10 @@
 """Worker thread for running transcription in the background."""
 
-import re
 import sys
 import threading
 import time
+import traceback
+import gc
 from pathlib import Path
 from queue import Queue
 
@@ -51,7 +52,6 @@ class TranscriptionWorker(threading.Thread):
 
             # Check cancel before loading model
             if self._cancel_flag.is_set():
-                self.result_queue.put(("cancelled", None))
                 return
 
             transcriber.load_model()
@@ -59,7 +59,6 @@ class TranscriptionWorker(threading.Thread):
             # Check cancel after loading model
             if self._cancel_flag.is_set():
                 transcriber.unload_model()
-                self.result_queue.put(("cancelled", None))
                 return
 
             in_path = Path(self.file_path)
@@ -69,54 +68,14 @@ class TranscriptionWorker(threading.Thread):
             self.progress_queue.put(("progress", 0, 100, "Starting transcription..."))
 
             audio_dur = get_audio_duration(self.file_path)
-            # Shared state between tqdm capture and on_segment callback
-            prog_state = {"tok_s": 0.0}
+            # Shared state between segment callback
+            prog_state = {
+                "tok_s": 0.0,
+                "last_pct": -1,
+                "start_time": time.time()
+            }
 
-            # === REAL-TIME PROGRESS FROM TQDM ===
-            # faster-whisper uses tqdm internally (writes to stderr).
-            # We intercept stderr to get real-time progress.
-
-            class _TqdmCapture:
-                """Capture tqdm output from stderr for real-time progress."""
-                def __init__(self, q, audio_dur, prog_state):
-                    self._q = q
-                    self._buf = ""
-                    self._last = -1
-                    self._start = time.time()
-                    self._audio_dur = audio_dur
-                    self._prog = prog_state
-
-                def write(self, s):
-                    if sys.__stderr__ is not None:
-                        sys.__stderr__.write(s)  # pass through to original stderr
-                    self._buf += s
-                    # Get last percentage from buffer
-                    matches = re.findall(r'(\d+)%', self._buf)
-                    if matches:
-                        pct = min(int(matches[-1]), 99)
-                        if pct != self._last:
-                            self._last = pct
-                            elapsed = time.time() - self._start
-                            # Calculate speed & ETA
-                            msg = f"Transcription {pct}%"
-                            if self._prog["tok_s"] > 0:
-                                msg += f" — {self._prog['tok_s']:.0f} tok/s"
-                            if elapsed > 3 and pct > 3 and pct < 95:
-                                eta = elapsed * (100 / pct - 1)
-                                msg += f" — ~{eta:.0f}s"
-                            self._q.put(("progress", pct, 100, msg))
-                    # Prevent buffer from growing indefinitely
-                    if len(self._buf) > 16384:
-                        self._buf = self._buf[-8192:]
-
-                def flush(self):
-                    if sys.__stderr__ is not None:
-                        sys.__stderr__.flush()
-
-            original_stderr = sys.stderr
-            sys.stderr = _TqdmCapture(self.progress_queue, audio_dur, prog_state)
-
-            # Callback to calculate tok/s in real-time from each segment
+            # Callback to calculate progress and tok/s in real-time from each segment
             total_chars = 0
             t_seg_start = time.time()
 
@@ -128,22 +87,42 @@ class TranscriptionWorker(threading.Thread):
                     # Whisper BPE: ~4.5 chars per token (multilingual)
                     prog_state["tok_s"] = total_chars / elapsed / 4.5
 
-            try:
-                result = transcriber.transcribe(
-                    file_path=self.file_path,
-                    language=self.config.get("language", "id"),
-                    task=self.config.get("task", "transcribe"),
-                    log_progress=True,
-                    on_segment=on_segment,
-                    cancel_flag=self._cancel_flag,
-                )
-            finally:
-                sys.stderr = original_stderr
+                if audio_dur > 0:
+                    pct = min(int((seg["end"] / audio_dur) * 100), 99)
+                    if pct != prog_state["last_pct"]:
+                        prog_state["last_pct"] = pct
+                        msg = f"Transcription {pct}%"
+                        if prog_state["tok_s"] > 0:
+                            msg += f" — {prog_state['tok_s']:.0f} tok/s"
+                        
+                        elapsed_total = time.time() - prog_state["start_time"]
+                        if elapsed_total > 3 and pct > 3 and pct < 95:
+                            eta = elapsed_total * (100 / pct - 1)
+                            msg += f" — ~{eta:.0f}s"
+                        self.progress_queue.put(("progress", pct, 100, msg))
+                else:
+                    # Fallback if audio_dur is 0
+                    msg = f"Transcribing... processed {seg['end']:.1f}s"
+                    if prog_state["tok_s"] > 0:
+                        msg += f" — {prog_state['tok_s']:.0f} tok/s"
+                    self.progress_queue.put(("progress", 0, 0, msg))
+
+            lang_cfg = self.config.get("language", "id")
+            if lang_cfg == "auto":
+                lang_cfg = None
+
+            result = transcriber.transcribe(
+                file_path=self.file_path,
+                language=lang_cfg,
+                task=self.config.get("task", "transcribe"),
+                log_progress=False,
+                on_segment=on_segment,
+                cancel_flag=self._cancel_flag,
+            )
 
             if self._cancel_flag.is_set():
                 self.progress_queue.put(("status", "Transcription cancelled"))
                 transcriber.unload_model()
-                self.result_queue.put(("cancelled", None))
                 return
 
             self.progress_queue.put(("status", "Saving transcription results..."))
@@ -152,9 +131,28 @@ class TranscriptionWorker(threading.Thread):
             output_dir = Path(self.config.get("output_dir", in_path.parent))
             output_dir.mkdir(parents=True, exist_ok=True)
             base_path = output_dir / in_path.stem
-            formats = self.config.get("formats", ["txt", "srt", "vtt"])
+            formats = list(self.config.get("formats", ["txt", "srt", "vtt"]))
+
+            if "pdf" in formats:
+                lang = result.get("language", "").lower()
+                unsupported_pdf_fonts = ["ja", "zh", "ko", "ar", "th", "he", "hi", "ur", "fa", "vi"]
+                if lang in unsupported_pdf_fonts:
+                    self.progress_queue.put(
+                        ("status", f"⚠️ Warning: PDF export skipped for {lang.upper()} (font not supported).")
+                    )
+                    formats.remove("pdf")
 
             saved_files = export_results(result, base_path, formats)
+
+            if self._cancel_flag.is_set():
+                self.progress_queue.put(("status", "Transcription cancelled during export"))
+                transcriber.unload_model()
+                return
+
+            if "pdf" in formats and "pdf" not in saved_files:
+                self.progress_queue.put(
+                    ("status", "⚠️ Warning: PDF export failed (check logs).")
+                )
 
             self.progress_queue.put(("progress", 100, 100, "✅ Done!"))
             self.progress_queue.put(("status", "✅ Transcription complete!"))
@@ -173,11 +171,11 @@ class TranscriptionWorker(threading.Thread):
 
             # Cleanup model
             transcriber.unload_model()
+            gc.collect()
 
         except Exception as e:
             if transcriber is not None:
                 transcriber.unload_model()
-            import traceback
             error_msg = f"{type(e).__name__}: {str(e)}"
             error_detail = traceback.format_exc()
             self.progress_queue.put(
