@@ -50,12 +50,10 @@ class ProgressPanel(ctk.CTkFrame):
             self.progress_bar.configure(mode="determinate")
             self._is_indeterminate = False
         self.progress_bar.set(value)
-        self.update_idletasks()
 
     def set_status(self, text: str):
         """Update status text."""
         self.status_var.set(text)
-        self.update_idletasks()
 
     def append_log(self, text: str):
         """Append text to log."""
@@ -63,7 +61,6 @@ class ProgressPanel(ctk.CTkFrame):
         self.log_text.insert("end", text + "\n")
         self.log_text.see("end")
         self.log_text.configure(state="disabled")
-        self.update_idletasks()
 
     def set_indeterminate(self, enabled: bool = True):
         """Set progress bar to indeterminate mode (loading)."""
@@ -87,4 +84,3 @@ class ProgressPanel(ctk.CTkFrame):
         self.log_text.configure(state="normal")
         self.log_text.delete("0.0", "end")
         self.log_text.configure(state="disabled")
-        self.update_idletasks()

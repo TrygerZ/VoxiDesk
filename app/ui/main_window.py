@@ -192,8 +192,7 @@ class MainWindow(ctk.CTkFrame):
         """Load settings from file and apply to UI."""
         settings = self.app_settings.get_all()
 
-        theme = settings.get("theme", "System")
-        ctk.set_appearance_mode(theme)
+        # Theme already set in App.__init__(), just update button text
         self._update_theme_button()
 
         self.settings_panel.load_from_settings(settings)
@@ -586,6 +585,11 @@ class MainWindow(ctk.CTkFrame):
 
     def _poll_queues(self):
         """Check queues for updates from worker (called via after)."""
+        # Only poll actively when processing to reduce overhead
+        if not self.is_processing:
+            self.after(200, self._poll_queues)
+            return
+
         try:
             latest_progress = None
             try:
@@ -627,8 +631,6 @@ class MainWindow(ctk.CTkFrame):
     def _show_about(self):
         """Show about dialog."""
         show_about(master=self.winfo_toplevel())
-
-    def on_close(self):
 
     def on_close(self):
         """Clean up on window close."""
