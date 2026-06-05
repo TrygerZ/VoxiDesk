@@ -56,7 +56,7 @@ VoxiDesk needs FFmpeg to process audio and video files. Download the latest buil
 - Windows builds: [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) or [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases)
 
 Extract **all contents** from the `bin/` folder of the FFmpeg build into `ffmpeg/bin/`:
-- `ffmpeg.exe`, `ffprobe.exe`
+- `ffmpeg.exe`, `ffprobe.exe`, `ffplay.exe`
 - All required DLLs (`avcodec-*.dll`, `avformat-*.dll`, `avutil-*.dll`, `avfilter-*.dll`, `avdevice-*.dll`, `swresample-*.dll`, `swscale-*.dll`)
 
 Or install FFmpeg globally and make sure it is in your system PATH.
