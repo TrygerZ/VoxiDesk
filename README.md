@@ -1,9 +1,9 @@
 # 🎙️ VoxiDesk
 
-[![Python](https://img.shields.io/badge/python-3.14+-blue?logo=python&logoColor=white)]()
+[![Python](https://img.shields.io/badge/python-3.14+-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![faster-whisper](https://img.shields.io/badge/engine-faster--whisper-8A2BE2)]()
-[![CUDA](https://img.shields.io/badge/CUDA-12-76B900?logo=nvidia&logoColor=white)]()
+[![faster-whisper](https://img.shields.io/badge/engine-faster--whisper-8A2BE2)](https://github.com/SYSTRAN/faster-whisper)
+[![CUDA](https://img.shields.io/badge/CUDA-12-76B900?logo=nvidia&logoColor=white)](https://developer.nvidia.com/cuda-toolkit)
 
 VoxiDesk is a desktop application that transcribes audio and video files into text. It uses **faster-whisper** with CTranslate2 to run 3-4x faster than the original OpenAI Whisper, with support for both CPU and NVIDIA GPU (CUDA) acceleration.
 
@@ -93,6 +93,8 @@ VoxiDesk uses faster-whisper with CTranslate2, which runs significantly faster t
 
 - **GUI:** CustomTkinter 5.x
 - **Engine:** faster-whisper 1.2.1 with CTranslate2
+- **GPU acceleration:** CTranslate2 (CUDA 12) + nvidia-cublas
+- **ONNX runtime:** onnxruntime
 - **PDF export:** fpdf2
 - **Image processing:** Pillow
 - **Drag and drop:** tkinterdnd2

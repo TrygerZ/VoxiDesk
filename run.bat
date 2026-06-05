@@ -11,7 +11,7 @@ echo.
 if not exist "venv\Scripts\activate.bat" (
     echo [ERROR] Virtual environment not found.
     echo.
-    echo Run: py -3.11 -m venv venv
+    echo Run: python -m venv venv
     echo.
     pause
     exit /b 1
