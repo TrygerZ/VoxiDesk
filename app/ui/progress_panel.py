@@ -6,6 +6,8 @@ import customtkinter as ctk
 class ProgressPanel(ctk.CTkFrame):
     """Panel displaying progress bar and real-time logs."""
 
+    MAX_LOG_LINES = 500
+
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self._is_indeterminate = False
@@ -56,9 +58,13 @@ class ProgressPanel(ctk.CTkFrame):
         self.status_var.set(text)
 
     def append_log(self, text: str):
-        """Append text to log."""
+        """Append text to log with line limit to prevent memory leak."""
         self.log_text.configure(state="normal")
         self.log_text.insert("end", text + "\n")
+        # Trim to max lines
+        lines = int(self.log_text.index("end-1c").split(".")[0])
+        if lines > self.MAX_LOG_LINES:
+            self.log_text.delete("1.0", f"{lines - self.MAX_LOG_LINES}.0")
         self.log_text.see("end")
         self.log_text.configure(state="disabled")
 

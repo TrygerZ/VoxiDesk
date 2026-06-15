@@ -1,6 +1,11 @@
 """Application settings management stored in settings.json."""
 
+import copy
 import json
+import logging
+import os
+import shutil
+from datetime import datetime
 from pathlib import Path
 from threading import Lock
 
@@ -23,6 +28,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 class AppSettings:
     """Persistent application settings manager."""
 
+    SCHEMA_VERSION = 1
+
     def __init__(self, path: str | Path | None = None):
         """
         Initialize AppSettings.
@@ -44,31 +51,79 @@ class AppSettings:
         return self._path
 
     def load(self) -> dict:
-        """Load settings from JSON file."""
+        """Load settings from JSON file with type validation and error differentiation."""
         with self._lock:
-            try:
-                if self._path.exists():
-                    with open(self._path, "r", encoding="utf-8") as f:
-                        self._settings = json.load(f)
-                else:
-                    self._settings = dict(DEFAULT_SETTINGS)
-                    self._save_internal()
-            except (json.JSONDecodeError, OSError):
-                if self._path.exists() and self._path.stat().st_size > 0:
-                    try:
-                        import shutil
-                        shutil.copy2(self._path, self._path.with_suffix(".json.bak"))
-                    except OSError:
-                        pass
+            if not self._path.exists():
                 self._settings = dict(DEFAULT_SETTINGS)
+                self._settings["__version__"] = self.SCHEMA_VERSION
                 self._save_internal()
+                return self._settings
+
+            try:
+                with open(self._path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                # Type validation: must be dict
+                self._settings = data if isinstance(data, dict) else dict(DEFAULT_SETTINGS)
+                # Ensure schema version is present
+                if "__version__" not in self._settings:
+                    self._settings["__version__"] = self.SCHEMA_VERSION
+            except json.JSONDecodeError as e:
+                logging.error("Settings file corrupted at %s: %s", self._path, e)
+                self._backup_corrupted()
+                self._settings = dict(DEFAULT_SETTINGS)
+                self._settings["__version__"] = self.SCHEMA_VERSION
+                self._save_internal()
+            except PermissionError as e:
+                logging.error("Permission denied reading settings at %s: %s", self._path, e)
+                self._settings = dict(DEFAULT_SETTINGS)
+                self._settings["__version__"] = self.SCHEMA_VERSION
+                # Do NOT overwrite file — fall back to in-memory defaults
+            except OSError as e:
+                logging.error("OS error reading settings at %s: %s", self._path, e)
+                self._settings = dict(DEFAULT_SETTINGS)
+                self._settings["__version__"] = self.SCHEMA_VERSION
         return self._settings
 
+    def _backup_corrupted(self):
+        """Backup a corrupted settings file before resetting (caller MUST hold self._lock)."""
+        if self._path.exists() and self._path.stat().st_size > 0:
+            try:
+                self._rotate_backup()
+            except OSError as e:
+                logging.warning("Failed to backup corrupted settings: %s", e)
+
+    def _rotate_backup(self):
+        """Rotate backup files with timestamp, keeping versioned copies."""
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        backup_path = self._path.with_suffix(f".json.bak.{timestamp}")
+        try:
+            shutil.copy2(self._path, backup_path)
+        except OSError as e:
+            logging.warning("Failed to create backup at %s: %s", backup_path, e)
+
     def _save_internal(self):
-        """Write settings to disk (caller MUST hold self._lock)."""
+        """Write settings to disk atomically (caller MUST hold self._lock)."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._path, "w", encoding="utf-8") as f:
-            json.dump(self._settings, f, indent=2, ensure_ascii=False)
+        tmp_path = self._path.with_suffix(".tmp")
+        try:
+            # Backup existing file before overwriting
+            if self._path.exists():
+                self._rotate_backup()
+
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(self._settings, f, indent=2, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, self._path)
+        except OSError as e:
+            logging.error("Failed to save settings to %s: %s", self._path, e)
+            # Clean up temp file if it exists
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise
 
     def save(self):
         """Save settings to JSON file."""
@@ -93,12 +148,13 @@ class AppSettings:
             self._save_internal()
 
     def get_all(self) -> dict:
-        """Return all settings."""
+        """Return all settings as a deep copy to prevent external mutation."""
         with self._lock:
-            return dict(self._settings)
+            return copy.deepcopy(self._settings)
 
     def reset_to_defaults(self):
         """Reset all settings to defaults."""
         with self._lock:
             self._settings = dict(DEFAULT_SETTINGS)
+            self._settings["__version__"] = self.SCHEMA_VERSION
             self._save_internal()

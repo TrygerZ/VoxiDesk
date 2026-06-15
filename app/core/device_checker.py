@@ -1,6 +1,9 @@
 """Detect available devices for running Whisper models."""
 
+import logging
 import subprocess
+
+logger = logging.getLogger(__name__)
 
 
 def _check_nvidia_smi() -> list[str]:
@@ -52,6 +55,12 @@ def get_available_devices() -> list[dict]:
     if cuda_count > 0:
         nvidia_gpus = _check_nvidia_smi()
         for i in range(cuda_count):
+            if i >= len(nvidia_gpus):
+                logger.warning(
+                    "CUDA device %d not found in nvidia-smi output "
+                    "(cuda_count=%d, nvidia-smi GPUs=%d)",
+                    i, cuda_count, len(nvidia_gpus),
+                )
             gpu_name = nvidia_gpus[i] if i < len(nvidia_gpus) else f"GPU {i}"
             devices.append({
                 "name": f"CUDA ({gpu_name})",

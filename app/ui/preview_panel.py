@@ -155,16 +155,21 @@ class PreviewPanel(ctk.CTkFrame):
         self.search_entry.delete(0, "end")
         self._show_placeholder()
 
-    def _copy_all(self):
-        """Copy all text to clipboard."""
+    def _get_all_text(self) -> str:
+        """Get all meaningful text from the preview (excluding placeholder)."""
         text = self.preview_text.get("0.0", "end").strip()
         if text and text != self._get_placeholder_text():
+            return text
+        return ""
+
+    def _copy_all(self):
+        """Copy all text to clipboard."""
+        text = self._get_all_text()
+        if text:
             self.clipboard_clear()
             self.clipboard_append(text)
-            # Brief visual feedback
-            original_text = self.btn_copy.cget("text")
-            self.btn_copy.configure(text="✅ Copied!")
-            self.after(1500, lambda: self.btn_copy.configure(text=original_text))
+        self.btn_copy.configure(text="✅ Copied!")
+        self.after(1500, lambda: self.btn_copy.configure(text="📋 Copy All"))
 
     def _get_placeholder_text(self) -> str:
         """Get placeholder text for comparison."""

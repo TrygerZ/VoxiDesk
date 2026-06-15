@@ -4,8 +4,11 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![faster-whisper](https://img.shields.io/badge/engine-faster--whisper-8A2BE2)](https://github.com/SYSTRAN/faster-whisper)
 [![CUDA](https://img.shields.io/badge/CUDA-12-76B900?logo=nvidia&logoColor=white)](https://developer.nvidia.com/cuda-toolkit)
+[![Version](https://img.shields.io/badge/version-3.1.0-blue)](CHANGELOG.md)
 
 VoxiDesk is a desktop application that transcribes audio and video files into text. It uses **faster-whisper** with CTranslate2 to run 3-4x faster than the original OpenAI Whisper, with support for both CPU and NVIDIA GPU (CUDA) acceleration.
+
+> **What's new in 3.1.0** — Thread safety, atomic write persistence, security hardening, UI improvements, and more. See the [CHANGELOG](CHANGELOG.md) for full details.
 
 ## ✨ Features
 

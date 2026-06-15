@@ -62,6 +62,7 @@ def show_error(title: str, message: str, detail: str | None = None, master=None)
     btn_ok = ctk.CTkButton(btn_frame, text="OK", command=close, width=80)
     btn_ok.pack(side="left", padx=5)
 
+    dialog.protocol("WM_DELETE_WINDOW", close)
     dialog.wait_window()
 
 
@@ -102,6 +103,7 @@ def show_info(title: str, message: str, master=None):
     btn_ok = ctk.CTkButton(dialog, text="OK", command=close_info, width=80)
     btn_ok.pack(pady=(0, 15))
 
+    dialog.protocol("WM_DELETE_WINDOW", close_info)
     dialog.wait_window()
 
 
@@ -236,4 +238,5 @@ def show_about(master=None):
     btn_ok = ctk.CTkButton(dialog, text="Close", command=close_about, width=80)
     btn_ok.pack(pady=(0, 15))
 
+    dialog.protocol("WM_DELETE_WINDOW", close_about)
     dialog.wait_window()

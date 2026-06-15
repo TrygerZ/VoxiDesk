@@ -6,6 +6,14 @@ from app.data.history import History
 from app.ui.dialogs import show_info
 
 
+def _fmt_duration(value) -> str:
+    """Safely format a duration value, returning '-' on failure."""
+    try:
+        return f"{float(value):.1f}s"
+    except (TypeError, ValueError):
+        return "-"
+
+
 class HistoryPanel(ctk.CTkFrame):
     """Panel that displays the transcription history list."""
 
@@ -129,7 +137,7 @@ class HistoryPanel(ctk.CTkFrame):
                 (entry.get("timestamp", "-"), 160),
                 (entry.get("file_name", "-"), 250),
                 (entry.get("model", "-"), 70),
-                (f"{entry.get('duration_process', 0):.1f}s", 80),
+                (_fmt_duration(entry.get('duration_process', 0)), 80),
                 ("✅ Done", 80),
             ]
             for text, w in data:
@@ -158,8 +166,8 @@ class HistoryPanel(ctk.CTkFrame):
             f"🎙 Model: {entry.get('model', '-')} | "
             f"Language: {entry.get('language', '-')} | "
             f"Device: {entry.get('device', '-')}",
-            f"📏 Audio Duration: {entry.get('duration_audio', 0):.1f}s | "
-            f"Process: {entry.get('duration_process', 0):.1f}s",
+            f"📏 Audio Duration: {_fmt_duration(entry.get('duration_audio', 0))} | "
+            f"Process: {_fmt_duration(entry.get('duration_process', 0))}",
         ]
 
         output_files = entry.get("output_files", {})
@@ -179,14 +187,21 @@ class HistoryPanel(ctk.CTkFrame):
 
     def _clear_history(self):
         """Delete all history with confirmation."""
-        result = ctk.CTkInputDialog(
+        dialog = ctk.CTkInputDialog(
             text="Type 'DELETE' to confirm clearing all history:",
             title="Clear All History",
-        ).get_input()
+        )
+        # Make dialog modal
+        toplevel = self.winfo_toplevel()
+        dialog.transient(toplevel)
+        dialog.grab_set()
+        result = dialog.get_input()
 
         if result and result.strip().upper() == "DELETE":
             self.history.clear()
             self._refresh()
-            show_info("History Cleared", "All transcription history has been deleted.")
+            show_info("History Cleared", "All transcription history has been deleted.",
+                      master=self.winfo_toplevel())
         elif result:
-            show_info("Invalid Input", "Type 'DELETE' to confirm deletion.")
+            show_info("Invalid Input", "Type 'DELETE' to confirm deletion.",
+                      master=self.winfo_toplevel())

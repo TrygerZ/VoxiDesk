@@ -50,6 +50,11 @@ class MainWindow(ctk.CTkFrame):
         self.is_processing = False
         self.is_cancelling = False
 
+        # Worker lifecycle state flags
+        self._pending_error: dict | None = None  # Deferred error for worker_done handler
+        self._error_continue = False   # User chose to continue batch after error
+        self._error_stop = False       # User chose to stop batch after error
+
         # Batch processing state
         self.batch_files: list[Path] = []
         self.batch_index: int = 0
@@ -63,11 +68,17 @@ class MainWindow(ctk.CTkFrame):
         # Check FFmpeg at startup
         self.ffmpeg_status = check_ffmpeg()
 
+        # Debounce timer for auto-save
+        self._save_timer = None
+
         # Build UI
         self._build_ui()
 
         # Load settings from file
         self._load_settings()
+
+        # Connect auto-save callback
+        self.settings_panel.set_on_change(self._on_settings_changed)
 
         # Start polling queues
         self._poll_queues()
@@ -165,9 +176,10 @@ class MainWindow(ctk.CTkFrame):
 
 
     def _toggle_theme(self):
-        """Toggle between Dark and Light mode."""
-        current = ctk.get_appearance_mode()
-        new_mode = "Light" if current == "Dark" else "Dark"
+        """Cycle through System → Light → Dark → System."""
+        current_setting = self.app_settings.get("theme", "System")
+        cycle = {"System": "Light", "Light": "Dark", "Dark": "System"}
+        new_mode = cycle.get(current_setting, "System")
         ctk.set_appearance_mode(new_mode)
         self._update_theme_button()
         self.app_settings.set("theme", new_mode)
@@ -177,6 +189,8 @@ class MainWindow(ctk.CTkFrame):
         current = ctk.get_appearance_mode()
         if current == "Dark":
             self.btn_theme.configure(text="☀️ Light")
+        elif current == "Light":
+            self.btn_theme.configure(text="🖥 System")
         else:
             self.btn_theme.configure(text="🌙 Dark")
 
@@ -209,13 +223,19 @@ class MainWindow(ctk.CTkFrame):
         # Only save window dimensions if it's not minimized and has a valid size
         toplevel = self.winfo_toplevel()
         if toplevel.state() != "iconic":
-            w = self.winfo_width()
-            h = self.winfo_height()
+            w = toplevel.winfo_width()
+            h = toplevel.winfo_height()
             if w > 100 and h > 100:
                 settings["window_width"] = w
                 settings["window_height"] = h
                 
         self.app_settings.update(settings)
+
+    def _on_settings_changed(self):
+        """Debounced auto-save: waits 500ms idle before saving."""
+        if self._save_timer is not None:
+            self.after_cancel(self._save_timer)
+        self._save_timer = self.after(500, self._save_settings)
 
     def _on_file_changed(self, files: list[Path]):
         """Callback when the file list changes."""
@@ -316,6 +336,19 @@ class MainWindow(ctk.CTkFrame):
 
     def _process_next_file(self):
         """Process the next file in batch."""
+        # Safety: ensure previous worker is fully joined before starting new one
+        if self.worker is not None:
+            if self.worker.is_alive():
+                self.worker.join(timeout=10.0)
+                if self.worker.is_alive():
+                    logging.warning("[VoxiDesk] Previous worker still alive after 10s join")
+            self.worker = None
+
+        # Reset deferred error state
+        self._pending_error = None
+        self._error_continue = False
+        self._error_stop = False
+
         self._last_logged_pct = -1
         if self.batch_index >= self.batch_total:
             # All done
@@ -402,18 +435,9 @@ class MainWindow(ctk.CTkFrame):
                 self.is_cancelling = True
                 self.btn_cancel.configure(state="disabled")
                 self.progress_panel.set_status("Cancelling...")
-                
-                worker_ref = self.worker
-                def cancel_thread():
-                    worker_ref.cancel()
-                    # Block until the worker thread actually exits to prevent orphaned threads
-                    # holding onto CUDA VRAM. Since cancel_flag is set, it will exit soon.
-                    worker_ref.join(timeout=3.0)
-                    gc.collect()
-                    if self.worker is worker_ref:
-                        self.result_queue.put(("cancelled", None))
-                    
-                threading.Thread(target=cancel_thread, daemon=True).start()
+                # Worker itself will detect cancel_flag, cleanup, and send
+                # 'cancelled' + 'worker_done' signals via result_queue
+                self.worker.cancel()
 
         ctk.CTkButton(
             btn_frame, text="Yes, Cancel", command=do_cancel,
@@ -447,6 +471,11 @@ class MainWindow(ctk.CTkFrame):
     def _on_complete(self, result: dict):
         """Handler when one file is done transcribing."""
         if not self.is_processing:
+            return
+
+        # Ignore result if cancellation is in progress
+        if self.is_cancelling:
+            logging.info("[VoxiDesk] Ignoring result — cancellation in progress")
             return
 
         elapsed = time.time() - self.file_start_time
@@ -495,10 +524,10 @@ class MainWindow(ctk.CTkFrame):
         # Save batch result
         self.batch_results.append(result)
 
-        # Continue to next file
+        # Advance to next file — actual start is deferred to 'worker_done' signal
+        # to ensure the old worker has fully cleaned up (CUDA memory freed)
         if not self.is_cancelling:
             self.batch_index += 1
-            self._process_next_file()
 
     def _on_batch_complete(self):
         """Handler when all files are processed."""
@@ -537,52 +566,102 @@ class MainWindow(ctk.CTkFrame):
         self._reset_ui()
 
     def _on_error(self, error: dict):
-        """Handler when an error occurs."""
+        """Handler when an error occurs.
+        
+        During cancellation: logs the error but skips the dialog.
+        Normal flow: defers the error dialog to _handle_worker_done so the
+        worker thread is fully cleaned up before user interaction.
+        """
         if self.is_cancelling:
+            # Log error during cancel — don't show dialog, don't skip silently
+            logging.warning(
+                f"[VoxiDesk] Error during cancel: {error.get('message', '')}"
+            )
+            self.progress_panel.append_log(
+                f"⚠️ Error (during cancel): {error.get('message', '')}"
+            )
             return
 
-        self.progress_panel.set_indeterminate(False)
-        self.progress_panel.update_progress(0)
-        self.progress_panel.set_status("❌ Error")
-
-        show_error(
-            "Transcription Error",
-            error.get("message", "An unknown error occurred"),
-            error.get("detail"),
-        )
-
-        # Ask whether to continue to next file
-        if self.batch_index < self.batch_total - 1:
-            from app.ui.dialogs import show_confirm
-            proceed = show_confirm(
-                "Continue Batch?",
-                "File failed to process. Continue to next file?",
-                master=self.winfo_toplevel()
-            )
-            if proceed:
-                self.batch_index += 1
-                self._process_next_file()
-            else:
-                self._reset_ui()
-        else:
-            self._reset_ui()
+        # Store error for deferred handling in _handle_worker_done
+        self._pending_error = error
 
     def _on_cancelled(self):
-        """Handler when transcription is cancelled."""
-        self.is_cancelling = False
+        """Handler when 'cancelled' signal received from worker.
+        
+        Phase 1 of cancel: update status/log only.
+        Phase 2 (UI reset) happens in _handle_worker_done after worker exits.
+        """
         self.progress_panel.set_indeterminate(False)
         self.progress_panel.update_progress(0)
-        self.progress_panel.set_status("⏹ Cancelled")
+        self.progress_panel.set_status("⏹ Cancelling...")
         self.progress_panel.append_log("⏹ Transcription cancelled by user.")
 
-        # Record results completed before cancellation
-        if self.batch_results:
-            self.progress_panel.append_log(
-                f"ℹ️ {len(self.batch_results)}/{self.batch_total} files "
-                f"were processed before cancellation."
+    def _handle_worker_done(self):
+        """Handle 'worker_done' signal — worker thread has fully cleaned up.
+        
+        This is the single point where we decide what happens after a worker exits:
+        - If cancelling: finalize cancel (reset UI)
+        - If pending error: show deferred error dialog
+        - If batch complete: finalize batch
+        - Otherwise: start next file
+        """
+        # Join worker to ensure thread is fully reaped
+        if self.worker is not None and self.worker.is_alive():
+            self.worker.join(timeout=10.0)
+            if self.worker.is_alive():
+                logging.warning("[VoxiDesk] Worker still alive after 10s join in worker_done")
+        self.worker = None
+        gc.collect()
+
+        # --- Cancel flow: finalize ---
+        if self.is_cancelling:
+            if self.batch_results:
+                self.progress_panel.append_log(
+                    f"ℹ️ {len(self.batch_results)}/{self.batch_total} files "
+                    f"were processed before cancellation."
+                )
+            self.progress_panel.set_status("⏹ Cancelled")
+            self.is_cancelling = False
+            self._reset_ui()
+            return
+
+        # --- Error flow: show deferred dialog ---
+        if self._pending_error is not None:
+            error = self._pending_error
+            self._pending_error = None
+
+            self.progress_panel.set_indeterminate(False)
+            self.progress_panel.update_progress(0)
+            self.progress_panel.set_status("❌ Error")
+
+            # SEC-007: No detail parameter — traceback is in log only
+            show_error(
+                "Transcription Error",
+                error.get("message", "An unknown error occurred"),
+                master=self.winfo_toplevel(),
             )
 
-        self._reset_ui()
+            # Ask whether to continue to next file
+            if self.batch_index < self.batch_total:
+                from app.ui.dialogs import show_confirm
+                proceed = show_confirm(
+                    "Continue Batch?",
+                    "File failed to process. Continue to next file?",
+                    master=self.winfo_toplevel()
+                )
+                if proceed:
+                    self._process_next_file()
+                else:
+                    self._reset_ui()
+            else:
+                self._reset_ui()
+            return
+
+        # --- Normal flow: next file or batch complete ---
+        if self.batch_index >= self.batch_total:
+            self._on_batch_complete()
+        else:
+            self._process_next_file()
 
     def _save_history_entry(
         self,
@@ -623,10 +702,12 @@ class MainWindow(ctk.CTkFrame):
             logging.error(f"Failed to save history entry: {e}")
             try:
                 self.progress_panel.append_log(f"⚠️ Warning: Failed to save history ({e})")
+                # SEC-007: Don't expose internal error details in UI
+                logging.error("History save failed: %s", e)
                 from app.ui.dialogs import show_error
                 show_error(
                     "History Save Error",
-                    f"Failed to save transcription history:\n{e}",
+                    "Failed to save transcription history. Details logged.",
                     master=self.winfo_toplevel()
                 )
             except Exception:
@@ -685,18 +766,29 @@ class MainWindow(ctk.CTkFrame):
             for cur, tot, txt in progress_updates:
                 self._on_progress(cur, tot, txt)
 
+            # Process ALL result messages in order — important because
+            # 'worker_done' must come after 'result'/'cancelled'/'error'
             try:
-                msg = self.result_queue.get_nowait()
-                if msg[0] == "result":
-                    self._on_complete(msg[1])
-                elif msg[0] == "error":
-                    self._on_error(msg[1])
-                elif msg[0] == "cancelled":
-                    self._on_cancelled()
+                while True:
+                    msg = self.result_queue.get_nowait()
+                    if msg[0] == "result":
+                        self._on_complete(msg[1])
+                    elif msg[0] == "error":
+                        self._on_error(msg[1])
+                    elif msg[0] == "cancelled":
+                        self._on_cancelled()
+                    elif msg[0] == "worker_done":
+                        self._handle_worker_done()
+                    else:
+                        logging.warning(f"[VoxiDesk] Unknown result message: {msg}")
             except Empty:
                 pass
         except Exception as e:
-            print(f"[VoxiDesk] Queue error: {e}")
+            logging.exception("Queue polling error")
+            try:
+                self.progress_panel.append_log(f"⚠️ Internal error: {e}")
+            except Exception:
+                pass
 
         self.after(200, self._poll_queues)
 
@@ -705,10 +797,21 @@ class MainWindow(ctk.CTkFrame):
         show_about(master=self.winfo_toplevel())
 
     def on_close(self):
-        """Clean up on window close."""
-        if self.worker and self.is_processing:
+        """Clean up on window close.
+        
+        Ensures worker thread is fully joined before exit to prevent
+        CUDA memory leaks and orphaned threads.
+        """
+        if self.worker is not None and self.worker.is_alive():
             self.worker.cancel()
-            self.worker.join(timeout=2.0)
+            # Non-daemon worker needs time to unload model and free CUDA memory
+            self.worker.join(timeout=30.0)
+            if self.worker.is_alive():
+                logging.warning(
+                    "[VoxiDesk] Worker thread did not exit within 30s on close"
+                )
+            self.worker = None
+            gc.collect()
 
         # Save settings
         self._save_settings()

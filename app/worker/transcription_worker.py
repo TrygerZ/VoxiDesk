@@ -1,5 +1,7 @@
 """Worker thread for running transcription in the background."""
 
+import logging
+import os
 import sys
 import threading
 import time
@@ -11,6 +13,9 @@ from queue import Queue
 from app.core.transcriber import Transcriber
 from app.core.export import export_results
 from app.core.file_utils import get_audio_duration
+from app.core.ffmpeg_checker import get_ffmpeg_bin_dir
+
+logger = logging.getLogger(__name__)
 
 
 class TranscriptionWorker(threading.Thread):
@@ -24,7 +29,7 @@ class TranscriptionWorker(threading.Thread):
         result_queue: Queue,
     ):
         super().__init__()
-        self.daemon = True
+        self.daemon = False  # Non-daemon: ensures proper cleanup on exit
         self.file_path = file_path
         self.config = config
         self.progress_queue = progress_queue
@@ -36,9 +41,26 @@ class TranscriptionWorker(threading.Thread):
         self._cancel_flag.set()
 
     def run(self):
-        """Run transcription in the background thread."""
+        """Run transcription in the background thread.
+        
+        Lifecycle:
+        - Always cleans up model in finally block
+        - Sends 'cancelled' via result_queue if cancel was requested
+        - Always sends 'worker_done' as final signal to indicate full cleanup
+        """
         transcriber = None
         try:
+            # Ensure bundled FFmpeg is discoverable by faster_whisper.
+            # faster_whisper calls ffmpeg internally via subprocess, so we
+            # prepend the bundled bin dir to PATH for this process.
+            bundled_bin = get_ffmpeg_bin_dir()
+            if bundled_bin:
+                bundled_str = str(bundled_bin)
+                current_path = os.environ.get("PATH", "")
+                if bundled_str not in current_path:
+                    os.environ["PATH"] = f"{bundled_str}{os.pathsep}{current_path}"
+                    logger.debug("Prepended bundled FFmpeg to PATH: %s", bundled_str)
+
             # Send model loading status
             self.progress_queue.put(
                 ("status", f"Loading model '{self.config['model']}'...")
@@ -58,7 +80,6 @@ class TranscriptionWorker(threading.Thread):
 
             # Check cancel after loading model
             if self._cancel_flag.is_set():
-                transcriber.unload_model()
                 return
 
             in_path = Path(self.file_path)
@@ -122,31 +143,52 @@ class TranscriptionWorker(threading.Thread):
 
             if self._cancel_flag.is_set():
                 self.progress_queue.put(("status", "Transcription cancelled"))
-                transcriber.unload_model()
                 return
 
             self.progress_queue.put(("status", "Saving transcription results..."))
 
-            # Export results
-            output_dir = Path(self.config.get("output_dir", in_path.parent))
+            # Export results — SEC-002: sanitize output path to prevent traversal
+            output_dir = Path(self.config.get("output_dir", in_path.parent)).resolve()
             output_dir.mkdir(parents=True, exist_ok=True)
-            base_path = output_dir / in_path.stem
+
+            # Sanitize stem: remove path traversal and dangerous characters
+            safe_stem = in_path.stem.replace("..", "").replace("/", "").replace("\\", "")
+            if not safe_stem:
+                safe_stem = "transcription"
+            base_path = output_dir / safe_stem
+
+            # Validate: resolved base_path must remain inside output_dir
+            if not str(base_path.resolve()).startswith(str(output_dir)):
+                raise ValueError(f"Output path traversal detected: {base_path}")
+
             formats = list(self.config.get("formats", ["txt", "srt", "vtt"]))
 
             if "pdf" in formats:
                 lang = result.get("language", "").lower()
-                unsupported_pdf_fonts = ["ja", "zh", "ko", "ar", "th", "he", "hi", "ur", "fa", "vi"]
+                # Only block languages truly unsupported by DejaVuSans (CJK, Arabic, Thai, etc.)
+                unsupported_pdf_fonts = ["ja", "zh", "ko", "ar", "th", "he", "hi", "ur", "fa"]
                 if lang in unsupported_pdf_fonts:
                     self.progress_queue.put(
                         ("status", f"⚠️ Warning: PDF export skipped for {lang.upper()} (font not supported).")
                     )
                     formats.remove("pdf")
 
-            saved_files = export_results(result, base_path, formats)
+            try:
+                saved_files = export_results(result, base_path, formats)
+            except Exception as e:
+                # If export fails (e.g. PDF font issue), retry without PDF
+                logger.warning("Export failed, retrying without PDF: %s", e)
+                formats_without_pdf = [f for f in formats if f != "pdf"]
+                if formats_without_pdf:
+                    saved_files = export_results(result, base_path, formats_without_pdf)
+                    self.progress_queue.put(
+                        ("status", "⚠️ PDF export failed, saved other formats.")
+                    )
+                else:
+                    raise
 
             if self._cancel_flag.is_set():
                 self.progress_queue.put(("status", "Transcription cancelled during export"))
-                transcriber.unload_model()
                 return
 
             if "pdf" in formats and "pdf" not in saved_files:
@@ -169,18 +211,32 @@ class TranscriptionWorker(threading.Thread):
                 },
             ))
 
-            # Cleanup model
-            transcriber.unload_model()
-            gc.collect()
-
         except Exception as e:
+            # SEC-007: Log full traceback internally, send only generic message to UI
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            logger.error(
+                "Transcription error for %s: %s\n%s",
+                self.file_path, error_msg, traceback.format_exc(),
+            )
+
+            generic_msg = "An error occurred during transcription. Please check your input file and try again."
+            self.progress_queue.put(
+                ("status", f"Error: {generic_msg}")
+            )
+            # Send only generic message — no traceback or internal paths
+            self.result_queue.put(
+                ("error", {"message": generic_msg})
+            )
+        finally:
+            # === Guaranteed cleanup & lifecycle signals ===
+            # Always unload model and free CUDA/CPU memory
             if transcriber is not None:
                 transcriber.unload_model()
-            error_msg = f"{type(e).__name__}: {str(e)}"
-            error_detail = traceback.format_exc()
-            self.progress_queue.put(
-                ("status", f"Error: {error_msg}")
-            )
-            self.result_queue.put(
-                ("error", {"message": error_msg, "detail": error_detail})
-            )
+            gc.collect()
+
+            # If cancel was requested, send cancelled signal
+            if self._cancel_flag.is_set():
+                self.result_queue.put(("cancelled", None))
+
+            # Always signal that worker is fully done (cleanup complete)
+            self.result_queue.put(("worker_done", None))

@@ -67,9 +67,11 @@ TASK_OPTIONS = [
 class SettingsPanel(ctk.CTkFrame):
     """Configuration panel for model, language, task, device, and output formats."""
 
-    def __init__(self, master, **kwargs):
+    def __init__(self, master, on_change=None, **kwargs):
         super().__init__(master, **kwargs)
 
+        self._on_change_callback = on_change
+        self._pending_device = None  # Device to apply after async load
         self.devices = []
         self.cuda_status = {"available": False, "nvidia_gpus": [], "install_hint": None}
 
@@ -104,6 +106,9 @@ class SettingsPanel(ctk.CTkFrame):
 
     def _on_devices_loaded(self):
         """Update UI with loaded devices."""
+        if not self.winfo_exists():
+            return
+
         device_values = ["auto — Auto select"]
         seen_types = set()
         for dev in self.devices:
@@ -113,7 +118,10 @@ class SettingsPanel(ctk.CTkFrame):
                 
         self.device_menu.configure(values=device_values, state="normal")
         
-        dev = self.device_var.get()
+        # Use pending device if set (from load_from_settings), else current var
+        dev = self._pending_device or self.device_var.get()
+        self._pending_device = None
+
         if dev != "auto":
             available_types = {d["type"] for d in self.devices if d["available"]}
             if dev not in available_types:
@@ -308,36 +316,58 @@ class SettingsPanel(ctk.CTkFrame):
         )
         cb_pdf.pack(side="left", padx=(0, 10))
 
-    def _on_model_change(self, choice: str):
+        # Trace format variables for auto-save
+        self.format_txt_var.trace_add("write", self._trigger_change)
+        self.format_srt_var.trace_add("write", self._trigger_change)
+        self.format_vtt_var.trace_add("write", self._trigger_change)
+        self.format_pdf_var.trace_add("write", self._trigger_change)
+
+    def _trigger_change(self, *args):
+        """Fire the on_change callback (for auto-save)."""
+        if self._on_change_callback:
+            self._on_change_callback()
+
+    def set_on_change(self, callback):
+        """Set callback to be invoked when any setting changes."""
+        self._on_change_callback = callback
+
+    def _on_model_change(self, choice: str = None):
         """Update model info when selection changes."""
-        info = MODEL_OPTIONS.get(choice, {})
+        model = choice or self.model_var.get()
+        info = MODEL_OPTIONS.get(model, {})
         tooltip = info[3] if len(info) >= 4 else ""
         self.model_info.configure(text=tooltip)
+        self._trigger_change()
 
-    def _on_language_change(self, choice: str):
+    def _on_language_change(self, choice: str = None):
         """Update language var when selection changes."""
-        code = choice.split(" — ")[0].strip()
-        self.language_var.set(code)
+        if choice:
+            code = choice.split(" — ")[0].strip()
+            self.language_var.set(code)
+        self._trigger_change()
 
     def _on_task_change(self):
         """Update task tooltip when selection changes."""
         task = self.task_var.get()
         tooltip = TASK_TOOLTIPS.get(task, "")
         self.task_info.configure(text=tooltip)
+        self._trigger_change()
 
-    def _on_device_change(self, choice: str):
+    def _on_device_change(self, choice: str = None):
         """Update device var and tooltip when selection changes."""
-        if choice.startswith("auto"):
-            self.device_var.set("auto")
-        elif "cuda" in choice.lower():
-            self.device_var.set("cuda")
-        else:
-            self.device_var.set("cpu")
+        if choice:
+            if choice.startswith("auto"):
+                self.device_var.set("auto")
+            elif "cuda" in choice.lower():
+                self.device_var.set("cuda")
+            else:
+                self.device_var.set("cpu")
 
         # Update tooltip
         dev = self.device_var.get()
         tooltip = DEVICE_TOOLTIPS.get(dev, "")
         self.device_info.configure(text=tooltip)
+        self._trigger_change()
 
     def load_from_settings(self, settings: dict):
         """Load values from settings dict into UI."""
@@ -368,7 +398,8 @@ class SettingsPanel(ctk.CTkFrame):
         if "default_device" in settings:
             dev = settings["default_device"]
             self.device_var.set(dev)
-            # Validation logic is handled asynchronously in _on_devices_loaded
+            self._pending_device = dev
+            # Will be applied in _on_devices_loaded after async device scan
 
         if "default_formats" in settings:
             formats = settings["default_formats"]
