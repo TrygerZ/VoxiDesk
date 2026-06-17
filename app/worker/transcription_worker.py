@@ -12,7 +12,7 @@ from queue import Queue
 
 from app.core.transcriber import Transcriber
 from app.core.export import export_results
-from app.core.file_utils import get_audio_duration
+from app.core.file_utils import get_audio_duration, repair_audio_file
 from app.core.ffmpeg_checker import get_ffmpeg_bin_dir
 
 logger = logging.getLogger(__name__)
@@ -144,6 +144,58 @@ class TranscriptionWorker(threading.Thread):
             if self._cancel_flag.is_set():
                 self.progress_queue.put(("status", "Transcription cancelled"))
                 return
+
+            # === Auto-repair: detect empty result from corrupt audio ===
+            # faster-whisper 1.x uses PyAV internally, which is less tolerant
+            # of corrupt MP3 frames than the ffmpeg CLI. If a file has minor
+            # corruption, PyAV may only decode the first few milliseconds,
+            # resulting in 0 segments despite the file being hours long.
+            result_text = result.get("text", "").strip()
+            if not result_text and audio_dur > 30 and not self._cancel_flag.is_set():
+                logger.warning(
+                    "Empty transcription for '%s' (ffprobe duration: %.1fs). "
+                    "Attempting audio repair via ffmpeg re-encode...",
+                    in_path.name, audio_dur,
+                )
+                self.progress_queue.put((
+                    "status",
+                    "⚠️ Audio decode issue detected. Re-encoding file...",
+                ))
+
+                repaired = repair_audio_file(self.file_path)
+                if repaired is not None:
+                    self.progress_queue.put((
+                        "status",
+                        "🔄 Retrying transcription with repaired audio...",
+                    ))
+                    try:
+                        result = transcriber.transcribe(
+                            file_path=str(repaired),
+                            language=lang_cfg,
+                            task=self.config.get("task", "transcribe"),
+                            log_progress=False,
+                            on_segment=on_segment,
+                            cancel_flag=self._cancel_flag,
+                        )
+                        result_text = result.get("text", "").strip()
+                        if result_text:
+                            self.progress_queue.put((
+                                "status", "✅ Repair successful! File re-encoded cleanly."
+                            ))
+                        else:
+                            self.progress_queue.put((
+                                "status",
+                                "⚠️ Repair done, but transcription still empty. "
+                                "The audio may be silent or contain no speech.",
+                            ))
+                    finally:
+                        repaired.unlink(missing_ok=True)
+                else:
+                    self.progress_queue.put((
+                        "status",
+                        "⚠️ Audio repair failed. The file may be corrupt. "
+                        "Output will be empty.",
+                    ))
 
             self.progress_queue.put(("status", "Saving transcription results..."))
 
