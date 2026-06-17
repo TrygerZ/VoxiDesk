@@ -11,6 +11,8 @@ from threading import Lock
 
 # Path to project root folder
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+BACKUP_DIR = ROOT_DIR / "backups"
+MAX_BACKUPS = 5
 
 
 class History:
@@ -78,11 +80,24 @@ class History:
     def _rotate_backup(self):
         """Rotate backup files with timestamp, keeping versioned copies."""
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        backup_path = self._path.with_suffix(f".json.bak.{timestamp}")
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        backup_path = BACKUP_DIR / f"{self._path.stem}.bak.{timestamp}{self._path.suffix}"
         try:
             shutil.copy2(self._path, backup_path)
+            self._cleanup_old_backups()
         except OSError as e:
             logging.warning("Failed to create backup at %s: %s", backup_path, e)
+
+    def _cleanup_old_backups(self):
+        """Remove oldest backup files beyond MAX_BACKUPS limit."""
+        try:
+            pattern = f"{self._path.stem}.bak.*{self._path.suffix}"
+            backups = sorted(BACKUP_DIR.glob(pattern))
+            while len(backups) > MAX_BACKUPS:
+                oldest = backups.pop(0)
+                oldest.unlink()
+        except OSError as e:
+            logging.warning("Failed to clean up old backups: %s", e)
 
     def _save_internal(self):
         """Write entries to disk atomically (caller MUST hold self._lock)."""
