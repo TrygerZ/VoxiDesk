@@ -2,6 +2,8 @@
 
 import customtkinter as ctk
 
+from app.ui import theme
+
 
 class PreviewPanel(ctk.CTkFrame):
     """Panel for displaying transcription results."""
@@ -21,25 +23,27 @@ class PreviewPanel(ctk.CTkFrame):
         """Build UI components."""
         # Header
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", padx=20, pady=(10, 5))
+        header_frame.pack(fill="x", padx=theme.PAD_X, pady=(theme.PAD_Y, theme.PAD_Y // 2))
 
         self.label_title = ctk.CTkLabel(
             header_frame,
-            text="📝 Transcription Result",
-            font=("Segoe UI", 14, "bold"),
+            text="Result",
+            font=theme.FONT_HEADER,
+            text_color=theme.TEXT,
         )
         self.label_title.pack(side="left")
 
         # --- Search bar ---
         self.search_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        self.search_frame.pack(side="right", padx=(5, 0))
+        self.search_frame.pack(side="right", padx=(6, 0))
 
         self.search_entry = ctk.CTkEntry(
             self.search_frame,
-            placeholder_text="🔍 Search...",
-            width=130,
-            height=28,
-            font=("Segoe UI", 11),
+            placeholder_text="Search…",
+            width=140,
+            height=30,
+            font=theme.FONT_CAPTION,
+            corner_radius=theme.RADIUS_BTN,
         )
         self.search_entry.pack(side="left", padx=(0, 4))
         self.search_entry.bind("<KeyRelease>", lambda e: self._on_search())
@@ -50,8 +54,9 @@ class PreviewPanel(ctk.CTkFrame):
             text="▲",
             command=self._on_search_prev,
             width=28,
-            height=28,
-            font=("Segoe UI", 10),
+            height=30,
+            font=theme.font(10),
+            corner_radius=theme.RADIUS_BTN,
         )
         self.btn_search_prev.pack(side="left", padx=(0, 2))
 
@@ -60,16 +65,17 @@ class PreviewPanel(ctk.CTkFrame):
             text="▼",
             command=self._on_search_next,
             width=28,
-            height=28,
-            font=("Segoe UI", 10),
+            height=30,
+            font=theme.font(10),
+            corner_radius=theme.RADIUS_BTN,
         )
         self.btn_search_next.pack(side="left", padx=(0, 2))
 
         self.label_match_count = ctk.CTkLabel(
             self.search_frame,
             text="",
-            font=("Segoe UI", 11),
-            text_color="#888888",
+            font=theme.FONT_CAPTION,
+            text_color=theme.TEXT_MUTED,
             anchor="w",
         )
         self.label_match_count.pack(side="left", padx=(4, 0))
@@ -77,37 +83,48 @@ class PreviewPanel(ctk.CTkFrame):
         # --- Timestamp toggle ---
         self.btn_toggle_ts = ctk.CTkButton(
             header_frame,
-            text="⏱ Timestamp",
+            text="Timestamps",
             command=self._toggle_timestamp_mode,
             width=110,
-            height=28,
-            font=("Segoe UI", 11),
+            height=30,
+            font=theme.FONT_CAPTION,
+            corner_radius=theme.RADIUS_BTN,
         )
-        self.btn_toggle_ts.pack(side="right", padx=(5, 0))
+        self.btn_toggle_ts.pack(side="right", padx=(6, 0))
 
         # --- Copy button ---
         self.btn_copy = ctk.CTkButton(
             header_frame,
-            text="📋 Copy All",
+            text="Copy all",
             command=self._copy_all,
             width=90,
-            height=28,
-            font=("Segoe UI", 11),
+            height=30,
+            font=theme.FONT_CAPTION,
+            corner_radius=theme.RADIUS_BTN,
         )
-        self.btn_copy.pack(side="right", padx=(0, 5))
+        self.btn_copy.pack(side="right", padx=(0, 6))
 
         # Text preview
         self.preview_text = ctk.CTkTextbox(
             self,
-            font=("Segoe UI", 12),
+            font=theme.FONT_BODY,
             state="disabled",
             wrap="word",
+            corner_radius=theme.RADIUS_BTN,
         )
-        self.preview_text.pack(fill="both", padx=20, pady=(0, 10), expand=True)
+        self.preview_text.pack(fill="both", padx=theme.PAD_X, pady=(0, theme.PAD_Y), expand=True)
 
         # Configure search highlight tag
-        self.preview_text.tag_config("search_highlight", background="#FFFF00", foreground="#000000")
-        self.preview_text.tag_config("search_current", background="#FFA500", foreground="#000000")
+        self.preview_text.tag_config(
+            "search_highlight",
+            background=theme.HIGHLIGHT_BG,
+            foreground=theme.HIGHLIGHT_FG,
+        )
+        self.preview_text.tag_config(
+            "search_current",
+            background=theme.HIGHLIGHT_CURRENT_BG,
+            foreground=theme.HIGHLIGHT_CURRENT_FG,
+        )
 
         # Placeholder
         self._show_placeholder()
@@ -118,10 +135,10 @@ class PreviewPanel(ctk.CTkFrame):
         self.preview_text.delete("0.0", "end")
         self.preview_text.insert(
             "0.0",
-            "Transcription result will appear here...\n\n"
-            "1. Select audio/video file(s)\n"
-            "2. Adjust settings (optional)\n"
-            "3. Click '▶ Transcribe!' button\n"
+            "Transcription result will appear here…\n\n"
+            "1. Select audio or video file(s)\n"
+            "2. Adjust settings if needed\n"
+            "3. Click the Transcribe button\n"
             "4. Wait for the process to complete",
         )
         self.preview_text.configure(state="disabled")
@@ -131,7 +148,7 @@ class PreviewPanel(ctk.CTkFrame):
         self._text_content = text
         self._raw_segments = segments or []
         self._timestamp_mode = False
-        self.btn_toggle_ts.configure(text="⏱ Timestamp")
+        self.btn_toggle_ts.configure(text="Timestamps")
         self._display_text(text)
 
     def _display_text(self, text: str):
@@ -168,16 +185,16 @@ class PreviewPanel(ctk.CTkFrame):
         if text:
             self.clipboard_clear()
             self.clipboard_append(text)
-        self.btn_copy.configure(text="✅ Copied!")
-        self.after(1500, lambda: self.btn_copy.configure(text="📋 Copy All"))
+        self.btn_copy.configure(text="Copied!")
+        self.after(1500, lambda: self.btn_copy.configure(text="Copy all"))
 
     def _get_placeholder_text(self) -> str:
         """Get placeholder text for comparison."""
         return (
-            "Transcription result will appear here...\n\n"
-            "1. Select audio/video file(s)\n"
-            "2. Adjust settings (optional)\n"
-            "3. Click '▶ Transcribe!' button\n"
+            "Transcription result will appear here…\n\n"
+            "1. Select audio or video file(s)\n"
+            "2. Adjust settings if needed\n"
+            "3. Click the Transcribe button\n"
             "4. Wait for the process to complete"
         )
 
@@ -277,10 +294,10 @@ class PreviewPanel(ctk.CTkFrame):
         """Toggle between full text and timestamp display."""
         self._timestamp_mode = not self._timestamp_mode
         if self._timestamp_mode:
-            self.btn_toggle_ts.configure(text="📝 Full Text")
+            self.btn_toggle_ts.configure(text="Full text")
             formatted = self._format_with_timestamps()
         else:
-            self.btn_toggle_ts.configure(text="⏱ Timestamp")
+            self.btn_toggle_ts.configure(text="Timestamps")
             formatted = self._text_content
 
         self._display_text(formatted)

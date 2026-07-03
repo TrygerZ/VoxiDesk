@@ -10,6 +10,7 @@ from datetime import datetime
 
 import customtkinter as ctk
 
+from app.ui import theme
 from app.ui.file_drop_widget import FileDropWidget
 from app.ui.settings_panel import SettingsPanel
 from app.ui.progress_panel import ProgressPanel
@@ -85,34 +86,50 @@ class MainWindow(ctk.CTkFrame):
 
     def _build_ui(self):
         """Build UI components with Transcribe and History tabs."""
-        self.top_bar = ctk.CTkFrame(self, fg_color="transparent", height=30)
-        self.top_bar.pack(fill="x", padx=10, pady=(5, 0))
+        self.top_bar = ctk.CTkFrame(self, fg_color="transparent", height=36)
+        self.top_bar.pack(fill="x", padx=theme.PAD_X, pady=(theme.PAD_Y, 0))
+
+        # Wordmark: a thin orange accent tick sets the brand color without emoji.
+        self.title_frame = ctk.CTkFrame(self.top_bar, fg_color="transparent")
+        self.title_frame.pack(side="left")
+
+        self.accent_tick = ctk.CTkFrame(
+            self.title_frame,
+            fg_color=theme.ACCENT,
+            width=4,
+            height=20,
+            corner_radius=2,
+        )
+        self.accent_tick.pack(side="left", padx=(0, 10))
 
         self.label_app_title = ctk.CTkLabel(
-            self.top_bar,
-            text="🎙️ VoxiDesk",
-            font=("Segoe UI", 14, "bold"),
+            self.title_frame,
+            text="VoxiDesk",
+            font=theme.font(16, "bold"),
+            text_color=theme.TEXT,
         )
         self.label_app_title.pack(side="left")
 
-        self.btn_theme = ctk.CTkButton(
+        self.label_app_tagline = ctk.CTkLabel(
             self.top_bar,
-            text="🌙 Dark",
-            command=self._toggle_theme,
-            width=80,
-            height=28,
-            font=("Segoe UI", 11),
+            text="Audio & video transcription",
+            font=theme.FONT_CAPTION,
+            text_color=theme.TEXT_MUTED,
         )
-        self.btn_theme.pack(side="right", padx=(5, 0))
-        self._update_theme_button()
+        self.label_app_tagline.pack(side="right", padx=(0, 4))
 
-        self.tab_view = ctk.CTkTabview(self)
-        self.tab_view.pack(fill="both", expand=True, padx=10, pady=10)
+        self.tab_view = ctk.CTkTabview(
+            self,
+            fg_color=theme.SURFACE,
+            segmented_button_selected_color=theme.ACCENT,
+            segmented_button_selected_hover_color=theme.ACCENT_HOVER,
+        )
+        self.tab_view.pack(fill="both", expand=True, padx=theme.PAD_X, pady=theme.PAD_Y)
 
-        self.tab_transcribe = self.tab_view.add("🎤 Transcribe")
+        self.tab_transcribe = self.tab_view.add("Transcribe")
         self._build_transcribe_tab()
 
-        self.tab_history = self.tab_view.add("📜 History")
+        self.tab_history = self.tab_view.add("History")
         self.history_panel = HistoryPanel(self.tab_history, history=self.history)
         self.history_panel.pack(fill="both", expand=True)
 
@@ -129,38 +146,52 @@ class MainWindow(ctk.CTkFrame):
         self.settings_panel.pack(fill="x", pady=(0, 10))
 
         self.action_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-        self.action_frame.pack(fill="x", padx=20, pady=(0, 10))
+        self.action_frame.pack(fill="x", padx=theme.PAD_X, pady=(0, theme.GAP))
 
         self.btn_transcribe = ctk.CTkButton(
             self.action_frame,
-            text="▶ Transcribe!",
+            text="Transcribe",
             command=self._start_transcription,
-            height=40,
-            font=("Segoe UI", 14, "bold"),
+            height=44,
+            font=theme.font(14, "bold"),
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
+            text_color=theme.TEXT_ON_ACCENT,
+            corner_radius=theme.RADIUS_BTN,
             state="disabled",
         )
         self.btn_transcribe.pack(side="left", padx=(0, 10))
 
         self.btn_cancel = ctk.CTkButton(
             self.action_frame,
-            text="⏹ Cancel",
+            text="Cancel",
             command=self._cancel_transcription,
-            height=40,
+            height=44,
             width=100,
-            font=("Segoe UI", 12),
-            fg_color="#8B0000",
-            hover_color="#A52A2A",
+            font=theme.FONT_BODY,
+            fg_color="transparent",
+            hover_color=theme.SURFACE_HI,
+            text_color=theme.DANGER,
+            border_width=1,
+            border_color=theme.DANGER,
+            corner_radius=theme.RADIUS_BTN,
             state="disabled",
         )
         self.btn_cancel.pack(side="left", padx=(0, 10))
 
         self.btn_about = ctk.CTkButton(
             self.action_frame,
-            text="ℹ️ About",
+            text="About",
             command=self._show_about,
             width=100,
-            height=40,
-            font=("Segoe UI", 12),
+            height=44,
+            font=theme.FONT_BODY,
+            fg_color="transparent",
+            hover_color=theme.SURFACE_HI,
+            text_color=theme.TEXT_MUTED,
+            border_width=1,
+            border_color=theme.BORDER,
+            corner_radius=theme.RADIUS_BTN,
         )
         self.btn_about.pack(side="left", padx=(0, 10))
 
@@ -175,44 +206,24 @@ class MainWindow(ctk.CTkFrame):
             self._show_ffmpeg_warning()
 
 
-    def _toggle_theme(self):
-        """Cycle through System → Light → Dark → System."""
-        current_setting = self.app_settings.get("theme", "System")
-        cycle = {"System": "Light", "Light": "Dark", "Dark": "System"}
-        new_mode = cycle.get(current_setting, "System")
-        ctk.set_appearance_mode(new_mode)
-        self._update_theme_button()
-        self.app_settings.set("theme", new_mode)
-
-    def _update_theme_button(self):
-        """Update theme button text based on active mode."""
-        current = ctk.get_appearance_mode()
-        if current == "Dark":
-            self.btn_theme.configure(text="☀️ Light")
-        elif current == "Light":
-            self.btn_theme.configure(text="🖥 System")
-        else:
-            self.btn_theme.configure(text="🌙 Dark")
-
     def _show_ffmpeg_warning(self):
         """Show warning if FFmpeg is not found."""
         warning_label = ctk.CTkLabel(
             self.scroll_frame,
-            text="⚠️ FFmpeg not found. Transcription cannot run. "
+            text="FFmpeg not found. Transcription cannot run. "
                  "Make sure FFmpeg is installed or the bundled FFmpeg is available.",
-            font=("Segoe UI", 12),
-            text_color="#FF9800",
+            font=theme.FONT_BODY,
+            text_color=theme.WARNING,
             wraplength=800,
         )
-        warning_label.pack(padx=20, pady=(0, 10))
+        warning_label.pack(padx=theme.PAD_X, pady=(0, theme.GAP))
 
     def _load_settings(self):
         """Load settings from file and apply to UI."""
         settings = self.app_settings.get_all()
 
-        # Theme already set in App.__init__(), just update button text
-        self._update_theme_button()
-
+        # Appearance is fixed to Dark in App.__init__() (dark-only design),
+        # so there is no theme control to sync here.
         self.settings_panel.load_from_settings(settings)
 
     def _save_settings(self):
@@ -244,10 +255,10 @@ class MainWindow(ctk.CTkFrame):
             label = "file" if count == 1 else "files"
             self.btn_transcribe.configure(
                 state="normal",
-                text=f"▶ Transcribe ({count} {label})"
+                text=f"Transcribe ({count} {label})"
             )
         elif not files:
-            self.btn_transcribe.configure(state="disabled", text="▶ Transcribe!")
+            self.btn_transcribe.configure(state="disabled", text="Transcribe")
 
     def get_selected_files(self) -> list[Path]:
         """Return the list of files from the widget."""
@@ -327,7 +338,7 @@ class MainWindow(ctk.CTkFrame):
         self.batch_start_time = time.time()
 
         # Disable buttons
-        self.btn_transcribe.configure(state="disabled", text="⏳ Batch...")
+        self.btn_transcribe.configure(state="disabled", text="Processing…")
         self.btn_cancel.configure(state="normal")
         self.is_processing = True
 
@@ -402,31 +413,33 @@ class MainWindow(ctk.CTkFrame):
 
         dialog = ctk.CTkToplevel(self.winfo_toplevel())
         dialog.title("Confirm")
-        dialog.geometry("350x150")
+        dialog.geometry("360x170")
         dialog.resizable(False, False)
+        dialog.configure(fg_color=theme.BG_BASE)
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
 
         dialog.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() - 350) // 2
-        y = self.winfo_y() + (self.winfo_height() - 150) // 2
+        x = self.winfo_x() + (self.winfo_width() - 360) // 2
+        y = self.winfo_y() + (self.winfo_height() - 170) // 2
         dialog.geometry(f"+{x}+{y}")
 
         ctk.CTkLabel(
             dialog,
-            text="Are you sure you want to cancel?",
-            font=("Segoe UI", 14, "bold"),
-        ).pack(pady=(20, 5))
+            text="Cancel transcription?",
+            font=theme.FONT_TITLE,
+            text_color=theme.TEXT,
+        ).pack(pady=(24, 6))
 
         ctk.CTkLabel(
             dialog,
             text="The ongoing process will be stopped.",
-            font=("Segoe UI", 12),
-            text_color="#888888",
-        ).pack(pady=(0, 15))
+            font=theme.FONT_BODY,
+            text_color=theme.TEXT_MUTED,
+        ).pack(pady=(0, 18))
 
         btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        btn_frame.pack(pady=(0, 15))
+        btn_frame.pack(pady=(0, 18))
 
         def do_cancel():
             if dialog.winfo_exists():
@@ -434,20 +447,26 @@ class MainWindow(ctk.CTkFrame):
             if self.worker and not self.is_cancelling:
                 self.is_cancelling = True
                 self.btn_cancel.configure(state="disabled")
-                self.progress_panel.set_status("Cancelling...")
+                self.progress_panel.set_status("Cancelling…")
                 # Worker itself will detect cancel_flag, cleanup, and send
                 # 'cancelled' + 'worker_done' signals via result_queue
                 self.worker.cancel()
 
         ctk.CTkButton(
-            btn_frame, text="Yes, Cancel", command=do_cancel,
-            width=100, fg_color="#8B0000", hover_color="#A52A2A",
-        ).pack(side="left", padx=5)
+            btn_frame, text="Yes, cancel", command=do_cancel,
+            width=110, height=36,
+            fg_color=theme.DANGER, hover_color=theme.DANGER_HOVER,
+            text_color=theme.TEXT, corner_radius=theme.RADIUS_BTN,
+        ).pack(side="left", padx=6)
 
         ctk.CTkButton(
-            btn_frame, text="Continue", command=lambda: dialog.winfo_exists() and dialog.destroy(),
-            width=100,
-        ).pack(side="left", padx=5)
+            btn_frame, text="Keep going",
+            command=lambda: dialog.winfo_exists() and dialog.destroy(),
+            width=110, height=36,
+            fg_color="transparent", hover_color=theme.SURFACE_HI,
+            text_color=theme.TEXT_MUTED, border_width=1, border_color=theme.BORDER,
+            corner_radius=theme.RADIUS_BTN,
+        ).pack(side="left", padx=6)
 
     def _on_progress(self, current: int, total: int, text: str):
         """Handler for progress updates from worker."""
@@ -593,8 +612,8 @@ class MainWindow(ctk.CTkFrame):
         """
         self.progress_panel.set_indeterminate(False)
         self.progress_panel.update_progress(0)
-        self.progress_panel.set_status("⏹ Cancelling...")
-        self.progress_panel.append_log("⏹ Transcription cancelled by user.")
+        self.progress_panel.set_status("Cancelling…")
+        self.progress_panel.append_log("Transcription cancelled by user.")
 
     def _handle_worker_done(self):
         """Handle 'worker_done' signal — worker thread has fully cleaned up.
@@ -620,7 +639,7 @@ class MainWindow(ctk.CTkFrame):
                     f"ℹ️ {len(self.batch_results)}/{self.batch_total} files "
                     f"were processed before cancellation."
                 )
-            self.progress_panel.set_status("⏹ Cancelled")
+            self.progress_panel.set_status("Cancelled")
             self.is_cancelling = False
             self._reset_ui()
             return
@@ -727,12 +746,12 @@ class MainWindow(ctk.CTkFrame):
             count = len(files)
             self.btn_transcribe.configure(
                 state="normal",
-                text=f"▶ Transcribe ({count} files)",
+                text=f"Transcribe ({count} files)",
             )
         else:
             self.btn_transcribe.configure(
                 state="disabled",
-                text="▶ Transcribe!",
+                text="Transcribe",
             )
         self.btn_cancel.configure(state="disabled")
 

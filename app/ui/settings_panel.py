@@ -5,6 +5,7 @@ import customtkinter as ctk
 import threading
 import logging
 
+from app.ui import theme
 from app.core.device_checker import get_available_devices, get_cuda_status
 
 # Model info: (label, ram_estimation, speed, tooltip)
@@ -141,15 +142,15 @@ class SettingsPanel(ctk.CTkFrame):
         self._on_device_change(self.device_menu.get())
 
         if self.cuda_status.get("available"):
-            cuda_text = "✅ CUDA Available"
-            cuda_color = "#4CAF50"
+            cuda_text = "CUDA available"
+            cuda_color = theme.SUCCESS
         elif self.cuda_status.get("nvidia_gpus"):
             gpu_list = ", ".join(self.cuda_status["nvidia_gpus"])
-            cuda_text = f"⚠️ {gpu_list} (install CUDA torch)"
-            cuda_color = "#FF9800"
+            cuda_text = f"{gpu_list} (install CUDA torch)"
+            cuda_color = theme.WARNING
         else:
-            cuda_text = "❌ CUDA Not Available"
-            cuda_color = "#FF5252"
+            cuda_text = "CUDA not available"
+            cuda_color = theme.DANGER
 
         self.cuda_label.configure(text=cuda_text, text_color=cuda_color)
 
@@ -157,18 +158,21 @@ class SettingsPanel(ctk.CTkFrame):
         """Build settings UI components."""
         label_title = ctk.CTkLabel(
             self,
-            text="⚙️ Transcription Settings",
-            font=("Segoe UI", 14, "bold"),
+            text="Settings",
+            font=theme.FONT_HEADER,
+            text_color=theme.TEXT,
+            anchor="w",
         )
-        label_title.pack(pady=(10, 5))
+        label_title.pack(fill="x", padx=theme.PAD_X, pady=(theme.PAD_Y, theme.PAD_Y // 2))
 
         self.grid_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.grid_frame.pack(fill="x", padx=20, pady=5)
+        self.grid_frame.pack(fill="x", padx=theme.PAD_X, pady=5)
 
         # Row 0: Model
         ctk.CTkLabel(
-            self.grid_frame, text="Model:", font=("Segoe UI", 12), anchor="w"
-        ).grid(row=0, column=0, sticky="w", padx=(0, 10), pady=5)
+            self.grid_frame, text="Model", font=theme.FONT_BODY,
+            text_color=theme.TEXT, anchor="w"
+        ).grid(row=0, column=0, sticky="w", padx=(0, 14), pady=6)
 
         self.model_menu = ctk.CTkOptionMenu(
             self.grid_frame,
@@ -177,21 +181,22 @@ class SettingsPanel(ctk.CTkFrame):
             command=self._on_model_change,
             width=120,
         )
-        self.model_menu.grid(row=0, column=1, sticky="w", pady=5)
+        self.model_menu.grid(row=0, column=1, sticky="w", pady=6)
 
         self.model_info = ctk.CTkLabel(
             self.grid_frame,
             text="Balanced — recommended default.",
-            font=("Segoe UI", 11),
-            text_color="#888888",
+            font=theme.FONT_CAPTION,
+            text_color=theme.TEXT_MUTED,
             anchor="w",
         )
-        self.model_info.grid(row=0, column=2, sticky="w", padx=(10, 0), pady=5)
+        self.model_info.grid(row=0, column=2, sticky="w", padx=(14, 0), pady=6)
 
         # Row 1: Language
         ctk.CTkLabel(
-            self.grid_frame, text="Language:", font=("Segoe UI", 12), anchor="w"
-        ).grid(row=1, column=0, sticky="w", padx=(0, 10), pady=5)
+            self.grid_frame, text="Language", font=theme.FONT_BODY,
+            text_color=theme.TEXT, anchor="w"
+        ).grid(row=1, column=0, sticky="w", padx=(0, 14), pady=6)
 
         language_display = [
             f"{code} — {name}"
@@ -203,7 +208,7 @@ class SettingsPanel(ctk.CTkFrame):
             command=self._on_language_change,
             width=250,
         )
-        self.language_menu.grid(row=1, column=1, columnspan=2, sticky="w", pady=5)
+        self.language_menu.grid(row=1, column=1, columnspan=2, sticky="w", pady=6)
 
         current_lang = self.language_var.get()
         default_lang = next(
@@ -214,11 +219,12 @@ class SettingsPanel(ctk.CTkFrame):
 
         # Row 2: Task
         ctk.CTkLabel(
-            self.grid_frame, text="Task:", font=("Segoe UI", 12), anchor="w"
-        ).grid(row=2, column=0, sticky="w", padx=(0, 10), pady=5)
+            self.grid_frame, text="Task", font=theme.FONT_BODY,
+            text_color=theme.TEXT, anchor="w"
+        ).grid(row=2, column=0, sticky="w", padx=(0, 14), pady=6)
 
         self.task_frame_inner = ctk.CTkFrame(self.grid_frame, fg_color="transparent")
-        self.task_frame_inner.grid(row=2, column=1, columnspan=2, sticky="w", pady=5)
+        self.task_frame_inner.grid(row=2, column=1, columnspan=2, sticky="w", pady=6)
 
         for i, (value, label) in enumerate(TASK_OPTIONS):
             rb = ctk.CTkRadioButton(
@@ -226,25 +232,26 @@ class SettingsPanel(ctk.CTkFrame):
                 text=label,
                 variable=self.task_var,
                 value=value,
-                font=("Segoe UI", 12),
+                font=theme.FONT_BODY,
                 command=self._on_task_change,
             )
-            rb.pack(side="left", padx=(0, 15))
+            rb.pack(side="left", padx=(0, 18))
 
         # Row 3: Task info (own row for tooltip)
         self.task_info = ctk.CTkLabel(
             self.grid_frame,
             text=TASK_TOOLTIPS.get("transcribe", ""),
-            font=("Segoe UI", 11),
-            text_color="#888888",
+            font=theme.FONT_CAPTION,
+            text_color=theme.TEXT_MUTED,
             anchor="w",
         )
-        self.task_info.grid(row=3, column=1, sticky="w", padx=(0, 10), pady=5)
+        self.task_info.grid(row=3, column=1, sticky="w", padx=(0, 14), pady=6)
 
         # Row 4: Device
         ctk.CTkLabel(
-            self.grid_frame, text="Device:", font=("Segoe UI", 12), anchor="w"
-        ).grid(row=4, column=0, sticky="w", padx=(0, 10), pady=5)
+            self.grid_frame, text="Device", font=theme.FONT_BODY,
+            text_color=theme.TEXT, anchor="w"
+        ).grid(row=4, column=0, sticky="w", padx=(0, 14), pady=6)
 
         self.device_menu = ctk.CTkOptionMenu(
             self.grid_frame,
@@ -253,68 +260,69 @@ class SettingsPanel(ctk.CTkFrame):
             command=self._on_device_change,
             width=200,
         )
-        self.device_menu.grid(row=4, column=1, sticky="w", pady=5)
+        self.device_menu.grid(row=4, column=1, sticky="w", pady=6)
 
         # CUDA status
         self.cuda_label = ctk.CTkLabel(
             self.grid_frame,
-            text="Detecting CUDA...",
-            font=("Segoe UI", 11),
-            text_color="#888888",
+            text="Detecting CUDA…",
+            font=theme.FONT_CAPTION,
+            text_color=theme.TEXT_MUTED,
             anchor="w",
         )
-        self.cuda_label.grid(row=4, column=2, sticky="w", padx=(10, 0), pady=5)
+        self.cuda_label.grid(row=4, column=2, sticky="w", padx=(14, 0), pady=6)
 
         self.device_info = ctk.CTkLabel(
             self.grid_frame,
-            text="Detecting hardware capabilities...",
-            font=("Segoe UI", 11),
-            text_color="#888888",
+            text="Detecting hardware capabilities…",
+            font=theme.FONT_CAPTION,
+            text_color=theme.TEXT_MUTED,
             anchor="w",
             wraplength=500,
             justify="left",
         )
-        self.device_info.grid(row=5, column=1, columnspan=2, sticky="w", padx=(0, 10), pady=5)
+        self.device_info.grid(row=5, column=1, columnspan=2, sticky="w", padx=(0, 14), pady=6)
 
         # Row 6: Output Format
         ctk.CTkLabel(
-            self.grid_frame, text="Format:", font=("Segoe UI", 12), anchor="w"
-        ).grid(row=6, column=0, sticky="w", padx=(0, 10), pady=5)
+            self.grid_frame, text="Format", font=theme.FONT_BODY,
+            text_color=theme.TEXT, anchor="w"
+        ).grid(row=6, column=0, sticky="w", padx=(0, 14), pady=6)
 
         self.format_frame_inner = ctk.CTkFrame(self.grid_frame, fg_color="transparent")
-        self.format_frame_inner.grid(row=6, column=1, columnspan=2, sticky="w", pady=5)
+        self.format_frame_inner.grid(row=6, column=1, columnspan=2, sticky="w", pady=6)
 
         cb_txt = ctk.CTkCheckBox(
             self.format_frame_inner,
             text="TXT",
             variable=self.format_txt_var,
-            font=("Segoe UI", 12),
+            font=theme.FONT_BODY,
         )
-        cb_txt.pack(side="left", padx=(0, 10))
+        cb_txt.pack(side="left", padx=(0, 12))
 
         cb_srt = ctk.CTkCheckBox(
             self.format_frame_inner,
             text="SRT (Subtitle)",
             variable=self.format_srt_var,
-            font=("Segoe UI", 12),
+            font=theme.FONT_BODY,
         )
-        cb_srt.pack(side="left", padx=(0, 10))
+        cb_srt.pack(side="left", padx=(0, 12))
 
         cb_vtt = ctk.CTkCheckBox(
             self.format_frame_inner,
             text="VTT (Web)",
             variable=self.format_vtt_var,
-            font=("Segoe UI", 12),
+            font=theme.FONT_BODY,
         )
-        cb_vtt.pack(side="left", padx=(0, 10))
+        cb_vtt.pack(side="left", padx=(0, 12))
 
         cb_pdf = ctk.CTkCheckBox(
             self.format_frame_inner,
             text="PDF",
             variable=self.format_pdf_var,
-            font=("Segoe UI", 12),
+            font=theme.FONT_BODY,
         )
-        cb_pdf.pack(side="left", padx=(0, 10))
+        cb_pdf.pack(side="left", padx=(0, 12))
 
         # Trace format variables for auto-save
         self.format_txt_var.trace_add("write", self._trigger_change)

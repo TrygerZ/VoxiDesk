@@ -114,10 +114,19 @@ class App:
             sys.exit(1)
 
         self.settings = AppSettings()
-        theme = self.settings.get("theme", "System")
 
-        ctk.set_appearance_mode(theme)
-        ctk.set_default_color_theme("blue")
+        # Dark-only design: enforce Dark mode and load the custom
+        # warm-graphite + Claude-orange theme (resolved relative to this file
+        # so it works from any working directory / when packaged).
+        theme_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..", "assets", "themes", "voxidesk.json",
+        )
+        ctk.set_appearance_mode("Dark")
+        if os.path.exists(theme_path):
+            ctk.set_default_color_theme(theme_path)
+        else:
+            ctk.set_default_color_theme("blue")
 
         self.root = ctk.CTk()
         self.root.title(f"VoxiDesk v{VERSION}")

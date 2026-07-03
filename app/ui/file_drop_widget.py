@@ -9,6 +9,7 @@ import re
 import customtkinter as ctk
 from tkinter import filedialog, StringVar
 
+from app.ui import theme
 from app.core.file_utils import get_audio_duration, format_duration, MAX_FILE_SIZE
 
 logger = logging.getLogger(__name__)
@@ -101,27 +102,30 @@ class FileDropWidget(ctk.CTkFrame):
         # Instruction label
         self.label_title = ctk.CTkLabel(
             self,
-            text="📁 Select Audio / Video Files",
-            font=("Segoe UI", 14, "bold"),
+            text="Source files",
+            font=theme.FONT_HEADER,
+            text_color=theme.TEXT,
+            anchor="w",
         )
-        self.label_title.pack(pady=(10, 5))
+        self.label_title.pack(fill="x", padx=theme.PAD_X, pady=(theme.PAD_Y, theme.PAD_Y // 2))
 
         # Drop area
         self.drop_frame = ctk.CTkFrame(
             self,
-            border_width=2,
-            border_color="#555555",
-            corner_radius=10,
-            height=100,
+            fg_color=theme.SURFACE_HI,
+            border_width=1,
+            border_color=theme.BORDER,
+            corner_radius=theme.RADIUS_CARD,
+            height=110,
         )
-        self.drop_frame.pack(fill="x", padx=20, pady=(0, 10))
+        self.drop_frame.pack(fill="x", padx=theme.PAD_X, pady=(0, theme.PAD_Y // 2))
         self.drop_frame.pack_propagate(False)
 
         self.drop_label = ctk.CTkLabel(
             self.drop_frame,
-            text="📥 Drag & drop files here\nor click to browse",
-            font=("Segoe UI", 14),
-            text_color="#888888",
+            text="Drag & drop audio or video here\nor click to browse",
+            font=theme.FONT_BODY,
+            text_color=theme.TEXT_MUTED,
         )
         self.drop_label.pack(expand=True, fill="both")
 
@@ -145,20 +149,29 @@ class FileDropWidget(ctk.CTkFrame):
 
         self.btn_browse = ctk.CTkButton(
             self.btn_frame,
-            text="📂 Browse Files",
+            text="Browse files",
             command=self._browse_files,
-            width=100,
+            width=110,
+            height=34,
+            font=theme.FONT_BODY,
+            corner_radius=theme.RADIUS_BTN,
         )
-        self.btn_browse.pack(side="left", padx=(0, 5))
+        self.btn_browse.pack(side="left", padx=(0, 8))
 
         self.btn_clear = ctk.CTkButton(
             self.btn_frame,
-            text="🗑 Clear All",
+            text="Clear all",
             command=self.clear_files,
             width=100,
+            height=34,
+            font=theme.FONT_BODY,
             state="disabled",
-            fg_color="#8B0000",
-            hover_color="#A52A2A",
+            fg_color="transparent",
+            hover_color=theme.SURFACE_HI,
+            text_color=theme.DANGER,
+            border_width=1,
+            border_color=theme.BORDER,
+            corner_radius=theme.RADIUS_BTN,
         )
         self.btn_clear.pack(side="left")
 
@@ -166,10 +179,10 @@ class FileDropWidget(ctk.CTkFrame):
         self.count_label = ctk.CTkLabel(
             self,
             text="",
-            font=("Segoe UI", 11),
-            text_color="#888888",
+            font=theme.FONT_CAPTION,
+            text_color=theme.TEXT_MUTED,
         )
-        self.count_label.pack(pady=(0, 5))
+        self.count_label.pack(pady=(0, theme.PAD_Y // 2))
 
     def _setup_drag_drop(self):
         """Set up drag-and-drop using tkinterdnd2."""
@@ -197,12 +210,12 @@ class FileDropWidget(ctk.CTkFrame):
     def _on_drag_enter(self):
         """Visual feedback when drag enters the area."""
         if self.winfo_exists():
-            self.drop_frame.configure(border_color="#3B8ED0")
+            self.drop_frame.configure(border_color=theme.ACCENT, fg_color=theme.ACCENT_SOFT)
 
     def _on_drag_leave(self):
         """Visual feedback when drag leaves the area."""
         if self.winfo_exists():
-            self.drop_frame.configure(border_color="#555555")
+            self.drop_frame.configure(border_color=theme.BORDER, fg_color=theme.SURFACE_HI)
 
     def _on_drop(self, event):
         """Handler when files are dropped (multi-file support)."""
@@ -338,20 +351,20 @@ class FileDropWidget(ctk.CTkFrame):
         if not self.selected_files:
             self.btn_clear.configure(state="disabled")
             self.drop_label.configure(
-                text="📥 Drag & drop files here\nor click to browse",
-                text_color="#888888",
+                text="Drag & drop audio or video here\nor click to browse",
+                text_color=theme.TEXT_MUTED,
             )
             self.count_label.configure(text="")
             return
 
         # File count header
         count = len(self.selected_files)
-        self.count_label.configure(text=f"📄 {count} file(s) selected")
+        self.count_label.configure(text=f"{count} file(s) selected")
 
         self.btn_clear.configure(state="normal")
         self.drop_label.configure(
-            text="✅ Add more files (drag or browse)",
-            text_color="#4CAF50",
+            text="Add more files (drag or browse)",
+            text_color=theme.ACCENT,
         )
 
         # Display each file with async duration probing
@@ -366,11 +379,12 @@ class FileDropWidget(ctk.CTkFrame):
                 size_str = "??? (file not found)"
 
             # Show placeholder duration, probe async
-            file_info = f"{i + 1}. {file_path.name} ({size_str}) — ⏱ ..."
+            file_info = f"{i + 1}.  {file_path.name}  ·  {size_str}  ·  …"
             lbl = ctk.CTkLabel(
                 row,
                 text=file_info,
-                font=("Segoe UI", 11),
+                font=theme.FONT_CAPTION,
+                text_color=theme.TEXT,
                 anchor="w",
             )
             lbl.pack(side="left", fill="x", expand=True)
@@ -378,14 +392,16 @@ class FileDropWidget(ctk.CTkFrame):
             btn_remove = ctk.CTkButton(
                 row,
                 text="✕",
-                width=28,
-                height=22,
-                font=("Segoe UI", 10),
-                fg_color="#8B0000",
-                hover_color="#A52A2A",
+                width=26,
+                height=24,
+                font=theme.font(11),
+                fg_color="transparent",
+                hover_color=theme.SURFACE_HI,
+                text_color=theme.TEXT_MUTED,
+                corner_radius=theme.RADIUS_BTN,
                 command=lambda idx=i: self.remove_file(idx),
             )
-            btn_remove.pack(side="right", padx=(5, 0))
+            btn_remove.pack(side="right", padx=(6, 0))
 
             # Start async duration probe
             threading.Thread(
@@ -406,7 +422,7 @@ class FileDropWidget(ctk.CTkFrame):
         """Probe audio duration in background thread and update label."""
         try:
             duration = get_audio_duration(str(file_path))
-            dur_str = f" — ⏱ {format_duration(duration)}" if duration > 0 else ""
+            dur_str = f"  ·  {format_duration(duration)}" if duration > 0 else ""
         except Exception:
             dur_str = ""
         # Update UI on main thread
@@ -422,7 +438,7 @@ class FileDropWidget(ctk.CTkFrame):
         if not self.winfo_exists():
             return
         try:
-            new_text = f"{index + 1}. {file_path.name} ({size_str}){dur_str}"
+            new_text = f"{index + 1}.  {file_path.name}  ·  {size_str}{dur_str}"
             label.configure(text=new_text)
         except Exception:
             pass  # Widget may have been destroyed
